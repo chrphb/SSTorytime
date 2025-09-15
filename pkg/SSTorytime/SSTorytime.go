@@ -656,13 +656,13 @@ func Configure(ctx PoSST,load_arrows bool) {
 		ctx.DB.QueryRow("drop function lastsawsection(text)")
 		ctx.DB.QueryRow("drop function lastsawnptr(nodeptr)")
 		
-		ctx.DB.QueryRow("drop table Node")
-		ctx.DB.QueryRow("drop table PageMap")
-		ctx.DB.QueryRow("drop table NodeArrowNode")
 		ctx.DB.QueryRow("drop type NodePtr")
 		ctx.DB.QueryRow("drop type Link")
 		ctx.DB.QueryRow("drop type Appointment")
 
+		ctx.DB.QueryRow("drop table Node")
+		ctx.DB.QueryRow("drop table PageMap")
+		ctx.DB.QueryRow("drop table NodeArrowNode")
 		ctx.DB.QueryRow("drop table ArrowDirectory")
 		ctx.DB.QueryRow("drop table ArrowInverses")
 		ctx.DB.QueryRow("drop table ContextDirectory")
@@ -673,6 +673,11 @@ func Configure(ctx PoSST,load_arrows bool) {
 	// Create functions, some we use in autocreating index columns
 
 	ctx.DB.QueryRow("CREATE EXTENSION unaccent")
+
+	if !CreateType(ctx,LINK_TYPE) {
+		fmt.Println("Unable to create type as, ",LINK_TYPE)
+		os.Exit(-1)
+	}
 
 	if !CreateType(ctx,NODEPTR_TYPE) {
 		fmt.Println("Unable to create type as, ",NODEPTR_TYPE)
@@ -689,8 +694,12 @@ func Configure(ctx PoSST,load_arrows bool) {
 		os.Exit(-1)
 	}
 
-	DefineStoredFunctions(ctx)
+	if !CreateTable(ctx,CONTEXT_DIRECTORY_TABLE) {
+		fmt.Println("Unable to create table as, ",CONTEXT_DIRECTORY_TABLE)
+		os.Exit(-1)
+	}
 
+	DefineStoredFunctions(ctx)
 
 	if !CreateTable(ctx,PAGEMAP_TABLE) {
 		fmt.Println("Unable to create table as, ",PAGEMAP_TABLE)
@@ -709,11 +718,6 @@ func Configure(ctx PoSST,load_arrows bool) {
 
 	if !CreateTable(ctx,ARROW_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_DIRECTORY_TABLE)
-		os.Exit(-1)
-	}
-
-	if !CreateTable(ctx,CONTEXT_DIRECTORY_TABLE) {
-		fmt.Println("Unable to create table as, ",CONTEXT_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
@@ -1369,7 +1373,7 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 
 	fmt.Println("Storing contexts...")
 
-	UpdateDBContexts(ctx)
+	UploadContextsToDB(ctx)
 
 	fmt.Println("Storing page map...")
 
@@ -1741,9 +1745,7 @@ func GetContext(contextptr ContextPtr) string {
 
 // **************************************************************************
 
-func UpdateDBContexts(ctx PoSST) {
-
-	ctx.DB.QueryRow("TRUNCATE ContextDirectory")
+func UploadContextsToDB(ctx PoSST) {
 
 	for ctxdir := range CONTEXT_DIRECTORY {
 		UploadContextToDB(ctx,CONTEXT_DIRECTORY[ctxdir])
@@ -2193,8 +2195,8 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Basic quick neighbour probe
 
-	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetFwdLinks(start NodePtr,exclude NodePtr[],sttype int,maxlimit int)\n"+
-		"RETURNS Link[] AS $fn$\n" +
+	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetFwdLinks(start NodePtr,exclude NodePtr[],sttype int,maxlimit int)\n")
+	qstr +=	"RETURNS Link[] AS $fn$\n" +
 		"DECLARE \n" +
 		"    neighbours Link[];\n" +
 		"    fwdlinks Link[];\n" +
@@ -2218,7 +2220,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    END LOOP;\n" +
 		"    RETURN neighbours; \n" +
 		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n")
+		"$fn$ LANGUAGE plpgsql;\n"
 	
 	row,err = ctx.DB.Query(qstr)
 	
@@ -2406,6 +2408,8 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    ret_paths Text;\n" +
 		"    appendix Text;\n" +
 		"    tot_path Text;\n"+
+		"    count    int = 0;\n"+
+		"    horizon  int = 0;\n"+
 		"BEGIN\n" +
 
 		"IF depth = maxdepth THEN\n"+
@@ -2414,22 +2418,32 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END IF;\n"+
 
 		"fwdlinks := GetFwdLinks(start.Dst,exclude,sttype, maxlimit);\n" +
+		
+		// limit recursion explosions
+		"horizon := maxlimit - array_length(fwdlinks,1);"+
+
+		"IF horizon < 0 THEN\n"+
+		"  horizon = 0;\n"+
+		"  maxdepth = depth + 1;"+
+		"END IF;\n"+
 
 		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
 		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
 		"      exclude = array_append(exclude,lnk.Dst);\n" +
-		"      IF lnk IS NULL THEN" +
+		"      IF lnk IS NULL OR count >= maxlimit THEN" +
 		          // set end of path as return val
 		"         ret_paths := Format('%s\n%s',ret_paths,path);\n"+
 		"         RETURN ret_paths;"+
 		"      ELSE\n"+
+		"         count = count + 1;"+
 		          // Add to the path and descend into new link
 		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
-		"         appendix := SumFwdPaths(lnk,tot_path,sttype,depth+1,maxdepth,exclude,maxlimit);\n" +
+		"         appendix := SumFwdPaths(lnk,tot_path,sttype,depth+1,maxdepth,exclude,horizon);\n" +
 		          // when we return, we reached the end of one path
 		"         IF appendix IS NOT NULL THEN\n"+
 	                     // append full path to list of all paths, separated by newlines
 		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
+		"            count = count + regexp_count(appendix,';');"+
 		"         ELSE"+
 		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
 		"         END IF;"+
@@ -2924,6 +2938,8 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    ret_paths Text;\n" +
 		"    appendix Text;\n" +
 		"    tot_path Text;\n"+
+		"    count    int = 0;\n"+
+		"    horizon  int = 0;\n"+
 		"BEGIN\n" +
 
 		"IF depth = maxdepth THEN\n"+
@@ -2971,23 +2987,31 @@ func DefineStoredFunctions(ctx PoSST) {
 		"     fwdlinks := array_cat(fwdlinks,stlinks);\n" +
 		"END CASE;\n" +
 
+		"horizon := maxlimit - array_length(fwdlinks,1);"+
+
+		"IF horizon < 0 THEN\n"+
+		"  horizon = 0;\n"+
+		"  maxdepth = depth + 1;"+
+		"END IF;\n"+
+
 		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
 		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
 		"      exclude = array_append(exclude,lnk.Dst);\n" +
-		"      IF lnk IS NULL THEN\n" +
+		"      IF lnk IS NULL OR count > maxlimit THEN\n" +
 		"         ret_paths := Format('%s\n%s',ret_paths,path);\n"+
 		"      ELSE\n"+
+		"         count = count + 1;"+
 		"         IF context is not NULL AND NOT match_context(lnk.Ctx,context::text[]) THEN\n"+
                 "            CONTINUE;\n"+
                 "         END IF;\n"+
 
 		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
-		"         appendix := SumAllNCPaths(lnk,tot_path,orientation,depth+1,maxdepth,chapter,rm_acc,context,exclude,maxlimit);\n" +
+		"         appendix := SumAllNCPaths(lnk,tot_path,orientation,depth+1,maxdepth,chapter,rm_acc,context,exclude,horizon);\n" +
 
 		"         IF appendix IS NOT NULL THEN\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
+		"            count = count + regexp_count(appendix,';');"+
 		"         ELSE\n"+
-//		"            ret_paths := tot_path;\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
 		"         END IF;\n"+
 		"      END IF;\n"+
@@ -3013,27 +3037,27 @@ func DefineStoredFunctions(ctx PoSST) {
         // A more detailed path search that includes checks for chapter/context boundaries (NC/C functions)
         // with a start set of more than one node
 
-	qstr = "CREATE OR REPLACE FUNCTION AllSuperNCPathsAsLinks(start NodePtr[],chapter text,rm_acc boolean,context text[],orientation text,maxdepth INT)\n"+
+	qstr = "CREATE OR REPLACE FUNCTION AllSuperNCPathsAsLinks(start NodePtr[],chapter text,rm_acc boolean,context text[],orientation text,maxdepth INT,maxlimit int)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE\n" +
 		"   root Text;\n" +
 		"   path Text;\n"+
-		"   node NodePtr;"+
+		"   node NodePtr;\n"+
 		"   summary_path Text[];\n"+
 		"   exclude NodePtr[] = start;\n" +
 		"   ret_paths Text;\n" +
-		"   startlnk Link;"+
+		"   startlnk Link;\n"+
 		"BEGIN\n" +
 
 		// Aggregate array of starting set
 		"FOREACH node IN ARRAY start LOOP\n"+
 		"   startlnk := GetSingletonAsLink(node);\n"+
-		"   path := Format('%s',startlnk::Text);"+
-		"   root := SumAllNCPaths(startlnk,path,orientation,1,maxdepth,chapter,rm_acc,context,exclude,maxdepth);" +
+		"   path := Format('%s',startlnk::Text);\n"+
+		"   root := SumAllNCPaths(startlnk,path,orientation,1,maxdepth,chapter,rm_acc,context,exclude,maxlimit);\n" +
 		"   ret_paths := Format('%s\n%s',ret_paths,root);\n"+
 		"END LOOP;"+
 
-		"RETURN ret_paths; \n" +
+		"RETURN ret_paths;\n" +
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
@@ -3103,6 +3127,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"        RETURN '{}';\n" +
 		"    END IF;\n" +
 		"    neighbours := ARRAY[]::Link[];\n" +
+
 		"    FOREACH lnk IN ARRAY fwdlinks\n" +
 		"    LOOP\n"+
                 "      IF context is not NULL AND NOT match_context(lnk.Ctx,context) THEN\n"+
@@ -4404,7 +4429,7 @@ func GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodeP
 		rm_acc = "true"
 	}
 
-	qstr := fmt.Sprintf("select AllSuperNCPathsAsLinks(%s,'%s',%s,%s,'%s',%d);",FormatSQLNodePtrArray(start),chapter,rm_acc,FormatSQLStringArray(context),orientation,depth)
+	qstr := fmt.Sprintf("select AllSuperNCPathsAsLinks(%s,'%s',%s,%s,'%s',%d,%d);",FormatSQLNodePtrArray(start),chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
 
 	row, err := ctx.DB.Query(qstr)
 

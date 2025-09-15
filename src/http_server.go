@@ -205,19 +205,6 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 
 	// This is analogous to searchN4L
 
-	fmt.Println("Your starting expression generated this set: ",line,"\n")
-	fmt.Println(" - start set:",SL(search.Name))
-	fmt.Println(" -      from:",SL(search.From))
-	fmt.Println(" -        to:",SL(search.To))
-	fmt.Println(" -   chapter:",search.Chapter)
-	fmt.Println(" -   context:",SL(search.Context))
-	fmt.Println(" -    arrows:",SL(search.Arrows))
-	fmt.Println(" -    pagenr:",search.PageNr)
-	fmt.Println(" - sequence/story:",search.Sequence)
-	fmt.Println(" - limit/range/depth:",search.Range)
-	fmt.Println(" - show stats:",search.Stats)
-	fmt.Println()
-
 	// OPTIONS *********************************************
 
 	name := search.Name != nil
@@ -239,8 +226,25 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 	if search.Range > 0 {
 		limit = search.Range
 	} else {
-		limit = 10
+		if from || to {
+			limit = 30 // many paths make hard work
+		} else {
+			limit = 10
+		}
 	}
+
+	fmt.Println("Your starting expression generated this set: ",line,"\n")
+	fmt.Println(" - start set:",SL(search.Name))
+	fmt.Println(" -      from:",SL(search.From))
+	fmt.Println(" -        to:",SL(search.To))
+	fmt.Println(" -   chapter:",search.Chapter)
+	fmt.Println(" -   context:",SL(search.Context))
+	fmt.Println(" -    arrows:",SL(search.Arrows))
+	fmt.Println(" -    pagenr:",search.PageNr)
+	fmt.Println(" - sequence/story:",search.Sequence)
+	fmt.Println(" - limit/range/depth:",limit)
+	fmt.Println(" - show stats:",search.Stats)
+	fmt.Println()
 
 	nodeptrs := SST.SolveNodePtrs(CTX,search.Name,search.Chapter,search.Context,arrowptrs,limit)
 	leftptrs := SST.SolveNodePtrs(CTX,search.From,search.Chapter,search.Context,arrowptrs,limit)
@@ -258,7 +262,6 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 	}
 
 	if (context || chapter) && !name && !sequence && !pagenr && !(from || to) {
-
 		ShowChapterContexts(w,r,CTX,search,limit)
 		return
 	}
@@ -368,7 +371,7 @@ func HandleOrbit(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,search SST
 	content := fmt.Sprintf("[ %s ]",array)
 	response := PackageResponse(ctx,search,"Orbits",content)
 	
-	fmt.Println("REPLY:\n",string(response))
+	//fmt.Println("REPLY:\n",string(response))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
@@ -430,13 +433,15 @@ func PackageConeFromOrigin(ctx SST.PoSST,nptr SST.NodePtr,nth int,sttype int,cha
 
 	var wpaths [][]SST.WebPath
 
-	const maxlimit = SST.CAUSAL_CONE_MAXLIMIT
-	fcone,countf := SST.GetFwdPathsAsLinks(CTX,nptr,sttype,limit, maxlimit)
+	fcone,count := SST.GetFwdPathsAsLinks(CTX,nptr,sttype,limit,limit)
 	wpaths = append(wpaths,SST.LinkWebPaths(CTX,fcone,nth,chap,context,dimnptr,limit)...)
 
-	bcone,countb := SST.GetFwdPathsAsLinks(CTX,nptr,-sttype,limit,maxlimit)
-	wpaths = append(wpaths,SST.LinkWebPaths(CTX,bcone,nth,chap,context,dimnptr,limit)...)
-	
+	if sttype != 0 {
+		bcone,countb := SST.GetFwdPathsAsLinks(CTX,nptr,-sttype,limit,limit)
+		wpaths = append(wpaths,SST.LinkWebPaths(CTX,bcone,nth,chap,context,dimnptr,limit)...)
+		count += countb
+	}
+
 	wstr,err := json.Marshal(wpaths)
 
 	if wpaths == nil {
@@ -455,7 +460,7 @@ func PackageConeFromOrigin(ctx SST.PoSST,nptr SST.NodePtr,nth int,sttype int,cha
 	jstr += fmt.Sprintf("   \"Title\" : \"%s\",\n",title)  // tbd
 	jstr += fmt.Sprintf("   \"Paths\" : %s\n}",string(wstr))	
 
-	return jstr,countf + countb
+	return jstr,count
 }
 
 //******************************************************************
@@ -494,7 +499,7 @@ func HandlePathSolve(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,leftpt
 		}
 
 		solutions,_ = SST.WaveFrontsOverlap(CTX,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
-
+		fmt.Println("solutions",solutions)
 		if len(solutions) > 0 {
 			// format paths
 			var jstr string
@@ -552,9 +557,11 @@ func HandlePageMap(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,search S
 	jstr := SST.JSONPage(CTX,notes)
 	response := PackageResponse(ctx,search,"PageMap",jstr)
 
-	UpdateLastSawSection(w,r,notes[0].Chapter)
+	if notes != nil {
+		UpdateLastSawSection(w,r,notes[0].Chapter)
+	}
 
-	fmt.Println("PAGEMAP NOTES",string(response))
+	//fmt.Println("PAGEMAP NOTES",string(response))
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
 	fmt.Println("Done/sent pagemap")

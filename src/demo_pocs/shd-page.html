@@ -569,6 +569,8 @@
         panel.id = "main_content_panel";
         section.appendChild(panel);
 
+        console.log("JSON", obj);
+
         // List of events unrelated
 
         if (obj == null) {
@@ -604,7 +606,7 @@
       function DoEntireConePanel(obj) {
 
         let section = document.querySelector("main");
-        let panel = document.createElement("span");
+        let panel = document.createElement("div");
         panel.id = "main_content_panel";
         section.appendChild(panel);
 
@@ -711,39 +713,35 @@
 
         let section = document.querySelector("main");
 
-        let panel = document.createElement("span");
+        let panel = document.createElement("p");
         panel.id = "main_content_panel";
         section.appendChild(panel);
 
         CANVAS = CreateCanvas();
         DrawGrid(0, 0, 1);
 
-	// Major header
+        let parent = document.createElement("h1");
+        parent.textContent = "* Chapter Notes: ";
+        parent.id = "chapter_notes_heading";
+        panel.appendChild(parent);
 
-        let title = document.createElement("h1");
-        title.textContent = "* Chapter Notes: ";
-        title.id = "chapter_notes_heading";
-        panel.appendChild(title);
+        let shchap = document.createElement("p");
+        shchap.textContent = obj.Content.Title;
+        panel.appendChild(shchap);
 
-        // Chapter name
-
-        let chapter_name = document.createElement("span");
-        chapter_name.textContent = obj.Content.Title;
-        panel.appendChild(chapter_name);
-
-        panel = PrintNotes(panel, obj.Content.Notes);        
+        let thepage = document.createElement("div");
+//	thepage.setAttribute("class", "card-view");
+        thepage = PrintNotes(thepage, obj.Content.Notes);
+        parent.appendChild(thepage);
       }
 
       /***********************************************************/
 
       function DoTOCPanel(obj) {
-
         let section = document.querySelector("main");
-
-        let panel = document.createElement("span");
+        let panel = document.createElement("div");
         panel.id = "main_content_panel";
         section.appendChild(panel);
-
 
         let item = document.createElement("h1");
         item.textContent = "Table of contents and contexts";
@@ -757,9 +755,6 @@
           counter++;
 
           // N. Section/chapter header title
-          let chapter_section = document.createElement("div");
-          chapter_section.setAttribute("class", "card-view");
-          chapter_section.id = "toc-panel";
 
           let link = document.createElement("a");
           let item = document.createElement("h2");
@@ -768,7 +763,7 @@
           };
           item.textContent = counter + ". " + chpblk.Chapter;
           link.appendChild(item);
-          chapter_section.appendChild(link);
+          panel.appendChild(link);
 
           Event(chpblk.XYZ.X, chpblk.XYZ.Y, chpblk.XYZ.Z);
           Label(
@@ -780,6 +775,8 @@
             "gray",
           );
 
+          let chapter_section = document.createElement("p");
+          chapter_section.id = "toc-panel";
 
           // First do the context groups or ambient parts
 
@@ -839,6 +836,8 @@
               );
             }
           }
+
+          // Spacer ?
 
           if (chpblk.Common != null) {
             for (let ctx of chpblk.Common) {
@@ -1289,7 +1288,6 @@
 
         let child = document.createElement("div");
         child.setAttribute("class", "card-view");
-        child.id = "orbit_column_1of3"; // col 1 spans all 3 columns, full width for full node text
 
         let lastx = 0;
         let lasty = 0;
@@ -1355,7 +1353,7 @@
                 text.textContent = '         "        ';
                 text.style.fontFamily = "Times New Roman";
                 text.style.padding = "8px";
-                child.appendChild(text);
+                parent.appendChild(text);
                 continue;
               }
 
@@ -1474,6 +1472,7 @@
 
         let child = document.createElement("div");
         child.setAttribute("class", "card-view");
+
         child.id = "orbit_column_1of3"; // col 1 spans all 3 columns, full width for full node text
         panel.appendChild(child);
 
@@ -1715,7 +1714,7 @@
           let link = document.createElement("a");
           link.textContent = name;
           link.onclick = function () {
-            sendLinkSearch("from " + nptrs + " limit 30");
+            sendLinkSearch("from " + nptrs);
           };
           docpart.id = "cone_button";
           docpart.appendChild(link);
@@ -1742,7 +1741,7 @@
           link.textContent = name;
           link.onclick = function () {
             sendLinkSearch(
-              "from " + "(" + nclass + "," + nptr + ") arrow " + arrow + " limit 30",
+              "from " + "(" + nclass + "," + nptr + ") arrow " + arrow,
             );
           };
           docpart.id = "cone_button";
@@ -1792,7 +1791,7 @@
 
       window.addEventListener('keydown',function(event)
          {
-         if (event.keyCode == 13)
+         if(event.keyCode == 13)
             {
             event.preventDefault();
             return false;
@@ -1802,22 +1801,16 @@
       /***********************************************************/
 
       function SearchHandler() {
-
         let form = document.querySelector("#search");
 
         async function sendsearchData() {
           let formData = new FormData(form);
-
-          startHipnotize();
 
           fetch(API_SERVER + "/searchN4L", {
             method: POST_METHOD,
             body: formData,
           })
             .then((response) => {
-
-              stopHipnotize();
-
               if (!response.ok) {
                 throw new Error("network returns error");
               }
