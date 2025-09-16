@@ -50,6 +50,7 @@
         box-shadow: var(--shadow-3);
         width: 100svw;
       }
+
       header div {
         text-wrap: balance;
         text-align: center;
@@ -62,12 +63,14 @@
         border-radius: var(--radius-3);
         box-shadow: var(--shadow-5);
       }
+
       nav form {
         display: flex;
         gap: 1rem;
         align-items: center;
         padding: 1ch;
       }
+
       /* Canvas & Graphics */
 
       canvas {
@@ -84,13 +87,14 @@
         border-radius: var(--radius-3);
         padding: 1rem 0.5rem;
         margin-bottom: 0.5rem;
-        width: 98vw;
+        width: 92vw;
         border: 1px var(--stone-5) solid;
 
         box-shadow: var(--shadow-5);
       }
 
       /* Article / Main Display Area */
+
       a[title] {
         position: relative;
       }
@@ -115,11 +119,16 @@
         font-size: 35px;
         color: #4488bb;
         padding: 10px;
+        text-wrap: nowrap;
         margin-bottom: 10px;
       }
 
       #current_time_context {
         color: orange;
+      }
+
+      #ditto {
+        margin-left: 40px;
       }
 
       #statcount {
@@ -131,8 +140,9 @@
       h2 {
         font-size: 30px;
         color: #5599cc;
-        padding: 20px;
+        padding: 10px;
         margin: 0px;
+        text-wrap: nowrap;
         margin-bottom: 10px;
       }
 
@@ -152,36 +162,36 @@
       /* Create two columns/boxes that floats next to each other */
 
       #toc-panel {
-        padding: 15px;
+        padding: 10px;
         margin-left: 10px;
       }
 
       #toc-submit {
-        padding: 15px;
+        padding: 10px;
         float: right;
       }
 
       #toc-frag {
-        padding: 15px;
+        padding: 10px;
         color: navy;
       }
 
       #toc-elem {
-        padding: 15px;
+        padding: 10px;
         color: purple;
         font-size: 150%;
         line-height: 150%;
       }
 
       #toc-single {
-        padding: 15px;
+        padding: 10px;
         color: darkorange;
         font-size: 150%;
         line-height: 150%;
       }
 
       #toc-common {
-        padding: 15px;
+        padding: 10px;
         font-size: 150%;
         line-height: 150%;
       }
@@ -196,9 +206,7 @@
       }
 
       main div {
-        padding: 15px;
-        margin-bottom: 10px;
-        text-wrap: nowrap;
+        padding: 10px;
         overflow-x: clip;
       }
 
@@ -213,6 +221,7 @@
       main pre {
         color: green;
         font-size: 90%;
+        padding: 20px;
       }
 
       main strong {
@@ -230,7 +239,7 @@
       }
 
       #radius-2 {
-        margin-left: clamp(12ch, 12ch + 1vw, 22ch);
+        margin-left: clamp(7ch, 7ch + 1vw, 17ch);
         color: slategray;
         opacity: 0.8;
       }
@@ -555,7 +564,7 @@
         nowbar.textContent = obj.Ambient;
         header.appendChild(nowbar);
 
-        let ctxbar = document.createElement("p");
+        let ctxbar = document.createElement("div");
         ctxbar.id = "context_history";
         ctxbar.textContent = obj.Intent;
         header.appendChild(ctxbar);
@@ -565,7 +574,7 @@
 
       function DoOrbitPanel(obj) {
         let section = document.querySelector("main");
-        let panel = document.createElement("span");
+        let panel = document.createElement("i");
         panel.id = "main_content_panel";
         section.appendChild(panel);
 
@@ -580,14 +589,16 @@
 
         const separates = 0;
 
-        if (obj.Response != "Orbits") {
-          console.log("BAD PROTO");
-          return;
-        }
+      if (obj.Content.length == 0)
+         {
+         panel.textContent = "No result";
+         return;
+         }
 
         let last_node_event = obj.Content[0];
 
         for (let node_event of obj.Content) {
+
           ShowNodeEvent(panel, node_event, separates, "all", "", "h1");
 
           last_node_event = node_event; // don't link up
@@ -617,6 +628,10 @@
           let nclass = head_nptr.NClass;
           let ncptr = head_nptr.NCPtr;
 
+          let card = document.createElement("div");
+          card.setAttribute("class", "card-view");
+  	  panel.appendChild(card);
+
           let item = document.createElement("h2");
           let link = document.createElement("a");
           item.textContent = head_nptr.Title.slice(0, 50) + "..";
@@ -626,12 +641,9 @@
           };
 
           item.appendChild(link);
-          panel.appendChild(item);
+          card.appendChild(item);
 
-          let parent = document.createElement("content");
-
-          parent = PrintPaths(parent, head_nptr.Paths);
-          panel.appendChild(parent);
+          card = PrintPaths(card, head_nptr.Paths);
 
           // Add the centrality box at bottom of page
 
@@ -639,8 +651,10 @@
           let row = document.createElement("tr");
           let col1 = document.createElement("td");
           let hd1 = document.createElement("h4");
-          hd1.textContent = "Between-ness Centrality Rank";
+
+          hd1.textContent = "Betweenness Centrality Rank";
           col1.appendChild(hd1);
+
           let lst1 = document.createElement("ol");
 
           // For paths solve <a|b>
@@ -670,7 +684,7 @@
             row.appendChild(col2);
 
             tab.appendChild(row);
-            panel.appendChild(tab);
+            card.appendChild(tab);
 
             let hr = document.createElement("hr");
             panel.appendChild(hr);
@@ -711,7 +725,7 @@
 
         let section = document.querySelector("main");
 
-        let panel = document.createElement("span");
+        let panel = document.createElement("div");
         panel.id = "main_content_panel";
         section.appendChild(panel);
 
@@ -879,6 +893,7 @@
 
       function DoStatsPanel(obj) {
         let section = document.querySelector("main");
+
         let panel = document.createElement("div");
         panel.id = "main_content_panel";
         section.appendChild(panel);
@@ -896,8 +911,10 @@
         let item;
         let last;
         let hmpanel;
+        let card;
 
         for (let ls of obj.Content) {
+
           if (ls.Section != lastsection) {
             counter++;
             lastsection = ls.Section;
@@ -906,10 +923,14 @@
               sendLinkSearch("notes " + '"' + ls.Section + '"');
             };
 
+            card = document.createElement("div");
+	    card.setAttribute("class", "card-view");
+            panel.appendChild(card);
+
             item = document.createElement("strong");
             item.textContent = counter + ". " + ls.Section;
             link.appendChild(item);
-            panel.appendChild(link);
+            card.appendChild(link);
 
             sec = document.createElement("p");
             sec.id = "toc-panel";
@@ -923,14 +944,16 @@
             sub2.id = "statcount";
             sec.appendChild(sub2);
 
-            panel.appendChild(sec);
+            card.appendChild(sec);
 
             hmpanel = document.createElement("div");
-            panel.appendChild(hmpanel);
+            card.appendChild(hmpanel);
 
             Concept(ls.XYZ.X, ls.XYZ.Y, ls.XYZ.Z);
             Label(ls.XYZ.X, ls.XYZ.Y, ls.XYZ.Z, ls.Section, 12, "gray");
+
           } else {
+
             let nlink = document.createElement("a");
             let nitem = document.createElement("span");
             nitem.id = "heatmap";
@@ -1053,21 +1076,36 @@
         // BEGIN column_radiusof3 i.e. 2of3 and 3of3 depending on radius variable
 
         let box = document.createElement("div");
-        box.setAttribute("class", "card-view");
+        // too much box.setAttribute("class", "card-view");
 
         box.id = "radius-" + radius;
 
         // any arrow comes first
 
+	let prefix = " . .  " + "╠═▹  ";
+
+	for (let indent = 0; indent < radius; indent++)
+           {
+           prefix = ' . . . . . ' + prefix;
+           }
+
+        if (radius == 2)
+           {
+           prefix =  " . . . . . . .  ║ . . .  " + prefix;
+           }
+
+        let hier_pre = document.createElement("span");
+	hier_pre.textContent = prefix;
+        box.appendChild(hier_pre);
+
         let arrow_link = document.createElement("a");
-        arrow_link.textContent = `( ${arrow} )  `;
+        arrow_link.textContent = " ( " + arrow + " )  ";
         arrow_link.id = "arrow-" + stindex;
         arrow_link.title = STINDICES[stindex];
         arrow_link.class = "tooltip";
         arrow_link.style.fontFamily = "Verdana";
         box.appendChild(arrow_link);
 
-        // Begin print satellite node in column 2of3 or 3of3, depending on radius
 
         if (str.includes("\n")) {
           // preformatted item -> <pre>
@@ -1134,6 +1172,7 @@
       /***********************************************************/
 
       function PrintPaths(parent, array) {
+
         if (array.length < 1) {
           return parent;
         }
@@ -1142,8 +1181,10 @@
         let lasty = 0;
         let lastz = 0;
         let lastarrow = 0;
+        let newpath;
 
         for (let path = 0; path < array.length; path++) {
+
           if (array[path] == null) {
             continue;
           }
@@ -1151,6 +1192,14 @@
           // The WebPath protocol alternates node-arrow...
 
           for (let i = 0; i < array[path].length; i++) {
+
+          if (i == 0)
+             {
+             newpath = document.createElement("div");
+             newpath.setAttribute("class", "card-view");
+             parent.appendChild(newpath)
+             }
+
             if (i % 2 == 0) {
               // node
               let str = array[path][i].Name;
@@ -1193,14 +1242,14 @@
                 pre.textContent = str;
                 text_link.appendChild(pre);
 
-                parent.appendChild(text_link);
+                newpath.appendChild(text_link);
               } else {
                 let text_link = document.createElement("a");
                 text_link.onclick = function () {
                   sendlinkData(nclass, ncptr);
                 };
 
-                let text = document.createElement("i");
+                let text = document.createElement("span");
                 text.textContent = str;
                 text.style.fontFamily = "Times New Roman";
 
@@ -1210,7 +1259,7 @@
                 }
 
                 text_link.appendChild(text);
-                parent.appendChild(text_link);
+                newpath.appendChild(text_link);
               }
             } // arrow
             else {
@@ -1226,7 +1275,7 @@
               if (arrptr == then || arrptr == prev) {
                 // represent a privileged sequence for proper time
                 let newline = document.createElement("p");
-                parent.appendChild(newline);
+                newpath.appendChild(newline);
               }
 
               let arrow_link = document.createElement("a");
@@ -1236,12 +1285,9 @@
               arrow_link.title = STINDICES[stindex];
               arrow_link.style.fontFamily = "Verdana";
 
-              parent.appendChild(arrow_link);
+              newpath.appendChild(arrow_link);
             }
           }
-
-          let spacer = document.createElement("hr");
-          parent.appendChild(spacer);
         }
 
         return parent;
@@ -1352,7 +1398,7 @@
 
                 let text = document.createElement("span");
                 text.id = "ditto";
-                text.textContent = '         "        ';
+                text.textContent = ' . . . .  .   " . . . . .   ';
                 text.style.fontFamily = "Times New Roman";
                 text.style.padding = "8px";
                 child.appendChild(text);
@@ -2249,12 +2295,9 @@
         let parent = document.getElementById("canvas");
         let canvas = document.createElement("canvas");
         canvas.id = "myCanvas";
-        canvas.width = window.innerWidth;
+        canvas.width = window.innerWidth ;
         canvas.height = window.innerWidth / 2;
-        //canvas.style.position = "relative";
-        // canvas.style.border = "1px solid";
         CTX = canvas.getContext("2d");
-        // parent.height = window.innerWidth / 2;
         parent.appendChild(canvas);
         CTX.beginPath();
         return canvas;

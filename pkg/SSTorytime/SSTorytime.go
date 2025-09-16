@@ -674,13 +674,13 @@ func Configure(ctx PoSST,load_arrows bool) {
 
 	ctx.DB.QueryRow("CREATE EXTENSION unaccent")
 
-	if !CreateType(ctx,LINK_TYPE) {
-		fmt.Println("Unable to create type as, ",LINK_TYPE)
+	if !CreateType(ctx,NODEPTR_TYPE) {
+		fmt.Println("Unable to create type as, ",NODEPTR_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateType(ctx,NODEPTR_TYPE) {
-		fmt.Println("Unable to create type as, ",NODEPTR_TYPE)
+	if !CreateType(ctx,LINK_TYPE) {
+		fmt.Println("Unable to create type as, ",LINK_TYPE)
 		os.Exit(-1)
 	}
 	
@@ -2137,7 +2137,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	
 	for st := -EXPRESS; st <= EXPRESS; st++ {
 		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start LIMIT maxlimit;\n",st,STTypeDBChannel(st));
+			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start AND NOT L=0 LIMIT maxlimit;\n",st,STTypeDBChannel(st));
 	}
 	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
 		"END CASE;\n" +
@@ -3153,7 +3153,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"   CASE sttype \n"
 	for st := -EXPRESS; st <= EXPRESS; st++ {
 		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start AND UnCmp(Chap,rm_acc) LIKE lower(chapter) LIMIT maxlimit;\n",st,STTypeDBChannel(st));
+			"     SELECT %s INTO fwdlinks FROM Node WHERE NOT L=0 AND Nptr=start AND UnCmp(Chap,rm_acc) LIKE lower(chapter) LIMIT maxlimit;\n",st,STTypeDBChannel(st));
 	}
 	
 	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
@@ -3715,7 +3715,7 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 
 	// This ony works if we insert non-null arrays in initialization
 	cols := I_MEXPR+","+I_MCONT+","+I_MLEAD+","+I_NEAR +","+I_PLEAD+","+I_PCONT+","+I_PEXPR
-	qstr := fmt.Sprintf("select L,S,Chap,%s from Node where NPtr='(%d,%d)'::NodePtr",cols,db_nptr.Class,db_nptr.CPtr)
+	qstr := fmt.Sprintf("select L,S,Chap,%s from Node where NPtr='(%d,%d)'::NodePtr AND NOT L=0",cols,db_nptr.Class,db_nptr.CPtr)
 
 	row, err := ctx.DB.Query(qstr)
 
@@ -9472,6 +9472,10 @@ func IsBracketedSearchTerm(src string) (bool,string) {
 func IsExactMatch(org string) (bool,string) {
 
 	org = strings.TrimSpace(org)
+
+	if len(org) == 0 {
+		return false,org
+	}
 
 	if org[0] == '!' && org[len(org)-1] == '!' {
 
