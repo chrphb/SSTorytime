@@ -50,7 +50,7 @@ Sometimes you might see chapters that you didn't select showing up in searches. 
  What role should times play? Precise times are irrelevant because they never repeat. Coarse grains of time like "monday morning" do repeat and may be relevant in finding intended information. But how do we record the time? Is it the time at which information
 was written, uploaded, or when something actually happened? The technology can't guess this for you, because it needs to be intentional. The ambient time isn't necessarily relevant.
 
- SSTorytime shows you the ambient time in a coarse grained form after every search, so that you can copy and paste this into context tags if you want to be able to use it later. If you make a search without any search terms, you will see any items that are labelled in a matching time. So, if you have specific %to-do/%todo / to do lists for specific times, these will pop up by themselves.
+ SSTorytime shows you the ambient time in a coarse grained form after every search, so that you can copy and paste this into context tags if you want to be able to use it later. If you make a search without any search terms, you will see any items that are labelled in a matching time. So, if you have specific %"to-do"/%todo / to do lists for specific times, these will pop up by themselves.
 
  -:: _sequence_ ::
 
@@ -102,7 +102,7 @@ was written, uploaded, or when something actually happened? The technology can't
   context (means) a collection of signals that identify a scenario, like a scene description language
   factoid (means) a nugget of meaningful information contributing to knowledge
 
-  a text source of document (consists) paragraphs (consists) sentences (consists) punctuated fragments (consists) %n-grams
+  a text source of document (consists) paragraphs (consists) sentences (consists) punctuated fragments (consists) %"n-grams"
 
   punctuated fragments (used for) ranking the %intentionality or importance of text
   sentences   (used for) %factoids and partial %knowledge (ex) factoid
@@ -211,9 +211,11 @@ END;"    (ex)  A recursive search in SQL
 "UploadNodeToDB(ctx PoSST, org Node)"  (use-for) uploading an existing Node in memory to postgres
 "UploadArrowToDB(ctx PoSST,arrow ArrowPtr)" (use-for) uploading an arrow definition from memory to postgres
 "UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr)" (use-for) uploading an inverse arrow definition
+
 "UploadPageMapEvent(ctx PoSST, line PageMap)" (use-for) uploading a PageMap structure from memory to postgres
 
 "IdempDBAddLink(ctx PoSST,from Node,link Link,to Node)" (use-for) entry point for adding a link to a node in postgres
+
 "CreateDBNodeArrowNode(ctx PoSST, org NodePtr, dst Link, sttype int) bool" (use-for) adding a NodeArrowNode secondary/derived structure to postgres
 
  -::database upload functions::
@@ -253,7 +255,8 @@ END;"    (ex)  A recursive search in SQL
  -::database retrieve structural parts::
  +::path integral:::
 
-"GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link" (use-for) retrieve solution paths between a starting set and and final set like +'<final|start>' in generalized way
+ "GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link" (use-for) retrieve solution paths between a starting set and and final set like %'<final|start>' in generalized way
+
 "GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]NodePtr" (use-for) establish the nodes that play idential roles in a set of paths from +'<final|start>' to see which nodes are redundant
 
   -::path integral:::
