@@ -7,6 +7,11 @@
 
 -->
 
+
+> [!NOTE]
+> Commands now use \ in front as in other tools, e.g. `\from a1 \to s2` (see [searchN4L](docs/searchN4L.md))
+> A Python interface is coming.
+
 # SSTorytime
 
 ## Graphs are the language of spacetime process
@@ -198,6 +203,8 @@ The tool-set consistent of several components, starting with:
 * [API_EXAMPLE_3](src/API_EXAMPLE_3.go) - a maze solving example, showing higher functions.
 
 * [API_EXAMPLE_4](src/API_EXAMPLE_4.go) - a path solving example, with loop corrections (quantum style).
+
+* [python_integration_example.py](src/python_integration_example.py) - a basic Python interface (TBD)
 
 
 

@@ -743,17 +743,74 @@ func Close(ctx PoSST) {
 // In memory representation structures
 // **************************************************************************
 
-func RegisterContext(parse_state map[string]bool,ctx []string) ContextPtr {
+func RegisterContext(parse_state map[string]bool,context []string) ContextPtr {
+
+	ctxstr := NormalizeContextString(parse_state,context)
+
+	if len(ctxstr) == 0 {
+		return 0
+	}
+
+	ctxptr,exists := CONTEXT_DIR[ctxstr] 
+
+	if !exists {
+		var cd ContextDirectory
+		cd.Context = ctxstr
+		cd.Ptr = CONTEXT_TOP
+		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,cd)
+		CONTEXT_DIR[ctxstr] = CONTEXT_TOP
+		ctxptr = CONTEXT_TOP
+		CONTEXT_TOP++
+	}
+
+	return ctxptr
+}
+
+// **************************************************************************
+
+func TryContext(ctx PoSST,context []string) ContextPtr {
+
+	ctxstr := CompileContextString(context)
+
+	// Call db directly, without the local cache
+	str,ctxptr := GetDBContextByName(ctx,ctxstr)
+
+	if ctxptr == -1 || str != ctxstr {
+		ctxptr = UploadContextToDB(ctx,ctxstr,-1)
+		RegisterContext(nil,context)
+	}
+
+	return ctxptr
+}
+
+// **************************************************************************
+
+func CompileContextString(context []string) string {
+
+	// Ensure idempotence
+
+	var merge = make(map[string]int)
+
+	for c := range context {
+		merge[context[c]]++
+	}
+
+	return List2String(Map2List(merge))	
+}
+
+// **************************************************************************
+
+func NormalizeContextString(contextmap map[string]bool,ctx []string) string {
+
+	// Mitigate combinatoric explosion
 
 	var merge = make(map[string]bool)
 	var clist []string
 
-	// Since this is a shared resouce, when we extend, 
-	// we can't delete the old, only add a new and hope for
-	// no combinatoric explosion
-
-	if parse_state != nil {
-		for c := range parse_state {
+	// Merge sources into single map
+	
+	if contextmap != nil {
+		for c := range contextmap {
 			merge[c] = true
 		}
 	}
@@ -772,22 +829,7 @@ func RegisterContext(parse_state map[string]bool,ctx []string) ContextPtr {
 		}
 	}
 
-	// Mitigate combinatoric explosion
-	ctxstr := List2String(clist)
-
-	ctxptr,exists := CONTEXT_DIR[ctxstr] 
-
-	if !exists {
-		var cd ContextDirectory
-		cd.Context = ctxstr
-		cd.Ptr = CONTEXT_TOP
-		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,cd)
-		CONTEXT_DIR[ctxstr] = CONTEXT_TOP
-		ctxptr = CONTEXT_TOP
-		CONTEXT_TOP++
-	}
-
-	return ctxptr
+	return List2String(clist)
 }
 
 // **************************************************************************
@@ -1460,7 +1502,7 @@ func Edge(ctx PoSST,from Node,arrow string,to Node,context []string,weight float
 	link.Arr = arrowptr
 	link.Dst = to.NPtr
 	link.Wgt = weight
-	link.Ctx = RegisterContext(nil,context)
+	link.Ctx = TryContext(ctx,context)
 
 	IdempDBAddLink(ctx,from,link,to)
 
@@ -1522,7 +1564,7 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		link.Arr = arrowptr
 		link.Dst = container.NPtr
 		link.Wgt = weight[nptr]
-		link.Ctx = RegisterContext(nil,context)
+		link.Ctx = TryContext(ctx,context)
 		from := GetDBNodeByNodePtr(ctx,nptrs[nptr])
 		IdempDBAddLink(ctx,from,link,container)
 	}
@@ -1748,35 +1790,35 @@ func GetContext(contextptr ContextPtr) string {
 func UploadContextsToDB(ctx PoSST) {
 
 	for ctxdir := range CONTEXT_DIRECTORY {
-		UploadContextToDB(ctx,CONTEXT_DIRECTORY[ctxdir])
+		UploadContextToDB(ctx,CONTEXT_DIRECTORY[ctxdir].Context,CONTEXT_DIRECTORY[ctxdir].Ptr)
 	}
 }
 
 // **************************************************************************
 
-func UploadContextToDB(ctx PoSST,ctxdir ContextDirectory) {
+func UploadContextToDB(ctx PoSST,contextstring string,ptr ContextPtr) ContextPtr {
 
-	a := SQLEscape(ctxdir.Context)
-	b := ctxdir.Ptr
+	a := SQLEscape(contextstring)
+	b := ptr
 
 	// Make sure neither a nor b are previously defined
 
-	qstr := fmt.Sprintf("INSERT INTO ContextDirectory (Context,CtxPtr) SELECT '%s',%d WHERE NOT EXISTS (SELECT Context,CtxPtr FROM ContextDirectory WHERE Context = '%s' OR CtxPtr = %d)",a,b,a,b)
+	qstr := fmt.Sprintf("SELECT IdempInsertContext('%s',%d)",a,b)
 
 	row,err := ctx.DB.Query(qstr)
 	
 	if err != nil {
-		s := fmt.Sprint("Failed to insert",err)
-		
-		if strings.Contains(s,"duplicate key") {
-		} else {
-			fmt.Println(s,"FAILED \n",qstr,err)
-		}
-		return
+		fmt.Println("FAILED \n",qstr,err)
+	}
+
+	var cptr ContextPtr
+
+	for row.Next() {		
+		err = row.Scan(&cptr)
 	}
 
 	row.Close()
-
+	return cptr
 }
 
 //**************************************************************
@@ -1968,6 +2010,37 @@ func DefineStoredFunctions(ctx PoSST) {
 		"     INSERT INTO Node (Nptr.Chan,Nptr.Cptr,L,S,chap) VALUES (iszchani,icptri+1,iLi,iSi,ichapi);" +
 		"  END IF;\n" +
 		"  RETURN QUERY SELECT (NPtr).Chan,(NPtr).CPtr FROM Node WHERE s = iSi;\n" +
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;";
+
+	row,err = ctx.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// Insert Context from API
+
+	qstr = "CREATE OR REPLACE FUNCTION IdempInsertContext(constr text,conptr int)\n" +
+		"RETURNS int AS $fn$ " +
+		"DECLARE \n" +
+		"    cptr INT = 0;\n" +
+		"    found int=-99;\n" +
+		"BEGIN\n" +
+		"IF conptr=-1 THEN\n"+
+		"   SELECT Context,CtxPtr INTO found FROM ContextDirectory WHERE Context=constr AND CtxPtr=conptr;\n"+
+		"   SELECT max(CtxPtr) INTO cptr FROM ContextDirectory;\n"+
+		"   INSERT INTO ContextDirectory (Context,CtxPtr) VALUES (constr,cptr+1);\n"+
+		"   RETURN cptr+1;\n" +
+		"END IF;\n" +
+		"IF NOT EXISTS (SELECT CtxPtr FROM ContextDirectory WHERE CtxPtr=conptr OR Context=constr) THEN\n" +
+		"   INSERT INTO ContextDirectory (Context,CtxPtr) VALUES (constr,conptr);\n"+
+		"   RETURN conptr;\n" +
+		"END IF;"+
+		"SELECT CtxPtr INTO cptr FROM ContextDirectory WHERE CtxPtr=conptr OR Context=constr;\n"+
+		"RETURN cptr;\n"+
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;";
 
@@ -3519,7 +3592,7 @@ func GetDBChaptersMatchingName(ctx PoSST,src string) []string {
 
 // **************************************************************************
 
-func GetDBContextsMatchingName(ctx PoSST,src string) []string {
+func GetDBContextByName(ctx PoSST,src string) (string,ContextPtr) {
 
 	var qstr string
 
@@ -3527,39 +3600,56 @@ func GetDBContextsMatchingName(ctx PoSST,src string) []string {
 
 	if remove_accents {
 		search := stripped
-		qstr = fmt.Sprintf("SELECT DISTINCT Context FROM ContextDirectory WHERE match_context(unaccent(Context),'{%s}')",search)
+		qstr = fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE unaccent(Context)='%s'",search)
 	} else {
 		search := src
-		qstr = fmt.Sprintf("SELECT DISTINCT Context FROM ContextDirectory WHERE match_context(Ctx,'{%s}')",search)
+		qstr = fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE Context='%s'",search)
 	}
+
+	row, err := ctx.DB.Query(qstr)
+
+	if err != nil {
+		fmt.Println("QUERY GetDBContextByName",err)
+	}
+
+	var whole string
+	var ptr int
+
+	// Assume unique match for this, to be fixed elsewhere
+
+	for row.Next() {
+		err = row.Scan(&whole,&ptr)
+	}
+	row.Close()
+
+	return whole,ContextPtr(ptr)
+
+}
+
+// **************************************************************************
+
+func GetDBContextByPtr(ctx PoSST,ptr ContextPtr) (string,ContextPtr) {
+
+	qstr := fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE CtxPtr=%d",ptr)
 
 	row, err := ctx.DB.Query(qstr)
 	
 	if err != nil {
-		fmt.Println("QUERY GetDBContextssMatchingName",err)
+		fmt.Println("QUERY GetDBContextssByPtr",err)
 	}
 
-	var whole string
-	var retval []string
-	var idemp = make(map[string]int)
+	var retctx string
+	var retptr int
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		a := ParseSQLArrayString(whole)
-		for i := range a {
-			idemp[a[i]]++
-		}
-	}
+	// Assume unique match for this, to be fixed elsewhere
 
-	for s := range idemp {
-		retval = append(retval,s)
+	for row.Next() {
+		err = row.Scan(&retctx,&retptr)
 	}
 
 	row.Close()
 
-	sort.Strings(retval)
-	return retval
-
+	return retctx,ContextPtr(retptr)
 }
 
 // **************************************************************************
@@ -4319,7 +4409,7 @@ func GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link {
 
 func GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int, maxlimit int) ([][]Link,int) {
 
-	qstr := fmt.Sprintf("select FwdPathsAsLinks from FwdPathsAsLinks('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,maxlimit)
+	qstr := fmt.Sprintf("SELECT FwdPathsAsLinks from FwdPathsAsLinks('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,maxlimit)
 
 	row, err := ctx.DB.Query(qstr)
 	
@@ -4389,7 +4479,7 @@ func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,dept
 
 	qstr := fmt.Sprintf("select AllNCPathsAsLinks from AllNCPathsAsLinks('(%d,%d)','%s',%s,%s,'%s',%d,%d);",
 		start.Class,start.CPtr,chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
-	
+
 	row, err := ctx.DB.Query(qstr)
 
 	if err != nil {
@@ -4520,7 +4610,7 @@ func DownloadArrowsFromDB(ctx PoSST) {
 
 	row, err = ctx.DB.Query(qstr)
 	
-	if err != nil {
+	if err != nil {    
 		fmt.Println("QUERY Download Inverses Failed",err)
 	}
 
@@ -4564,19 +4654,17 @@ func DownloadContextsFromDB(ctx PoSST) {
 		c.Context = context
 		c.Ptr = ptr
 
-		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,c)
-		CONTEXT_DIR[context] = CONTEXT_TOP
-
 		if c.Ptr != CONTEXT_TOP {
 			fmt.Println(ERR_MEMORY_DB_CONTEXT_MISMATCH,c,CONTEXT_TOP)
 			os.Exit(-1)
 		}
 
+		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,c)
+		CONTEXT_DIR[context] = CONTEXT_TOP
 		CONTEXT_TOP++
 	}
 
 	row.Close()
-
 }
 
 // **************************************************************************
@@ -7033,30 +7121,32 @@ type STM struct {
 
 const (
 
-	CMD_ON = "on"
-	CMD_FOR = "for"
-	CMD_ABOUT = "about"
-	CMD_NOTES = "notes"
-	CMD_BROWSE = "browse"
-	CMD_PAGE = "page"
-	CMD_PATH = "path"
-	CMD_SEQ1 = "sequence"
-	CMD_SEQ2 = "seq"
-	CMD_FROM = "from"
-	CMD_TO = "to"
-	CMD_CTX = "ctx"
-	CMD_CONTEXT = "context"
-	CMD_AS = "as"
-	CMD_CHAPTER = "chapter"
-	CMD_CONTENTS = "contents"
-	CMD_SECTION = "section"
-	CMD_IN = "in"
-	CMD_ARROW = "arrow"
-	CMD_LIMIT = "limit"
-	CMD_DEPTH = "depth"
-	CMD_RANGE = "range"
-	CMD_DISTANCE = "distance"
-	CMD_STATS = "stats"
+	CMD_ON = "\\on"
+	CMD_FOR = "\\for"
+	CMD_ABOUT = "\\about"
+	CMD_NOTES = "\\notes"
+	CMD_BROWSE = "\\browse"
+	CMD_PAGE = "\\page"
+	CMD_PATH = "\\path"
+	CMD_SEQ1 = "\\sequence"
+	CMD_SEQ2 = "\\seq"
+	CMD_STORY = "\\story"
+	CMD_STORIES = "\\stories"
+	CMD_FROM = "\\from"
+	CMD_TO = "\\to"
+	CMD_CTX = "\\ctx"
+	CMD_CONTEXT = "\\context"
+	CMD_AS = "\\as"
+	CMD_CHAPTER = "\\chapter"
+	CMD_CONTENTS = "\\contents"
+	CMD_SECTION = "\\section"
+	CMD_IN = "\\in"
+	CMD_ARROW = "\\arrow"
+	CMD_LIMIT = "\\limit"
+	CMD_DEPTH = "\\depth"
+	CMD_RANGE = "\\range"
+	CMD_DISTANCE = "\\distance"
+	CMD_STATS = "\\stats"
 )
 
 //******************************************************************
@@ -7068,7 +7158,7 @@ func DecodeSearchField(cmd string) SearchParameters {
 	var keywords = []string{ 
 		CMD_NOTES, CMD_BROWSE, CMD_PATH,
 		CMD_PATH,CMD_FROM,CMD_TO,
-		CMD_SEQ1,CMD_SEQ2,
+		CMD_SEQ1,CMD_SEQ2,CMD_STORY,CMD_STORIES,
 		CMD_CONTEXT,CMD_CTX,CMD_AS,
 		CMD_CHAPTER,CMD_IN,CMD_SECTION,CMD_CONTENTS,
 		CMD_ARROW,
@@ -7297,7 +7387,7 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 					continue
 				}
 
-			case CMD_PATH,CMD_SEQ1,CMD_SEQ2:
+			case CMD_PATH,CMD_SEQ1,CMD_SEQ2,CMD_STORY,CMD_STORIES:
 				param.Sequence = true
 				continue
 
@@ -7407,7 +7497,7 @@ func SomethingLike(s string,keywords []string) string {
 
 func IsCommand(s string,list []string) bool {
 
-	const min_sense = 4
+	const min_sense = 5
 
 	for w := range list {
 		if list[w] == s {
@@ -9360,7 +9450,11 @@ func Waiting(output bool,total int) {
 
 	if SILLINESS {
 		if SILLINESS_COUNTER % interval != 0 {
-			fmt.Print(".")
+			if SILLINESS_COUNTER % 2 != 0 {
+				fmt.Print(".")
+			} else {
+				fmt.Print(" ")
+			}
 		} else {
 			fmt.Print(string(propaganda[SILLINESS_POS]))
 			SILLINESS_POS++
@@ -9370,7 +9464,11 @@ func Waiting(output bool,total int) {
 			}
 		}
 	} else {
-		fmt.Print(".")
+		if SILLINESS_COUNTER % 2 != 0 {
+			fmt.Print(".")
+		} else {
+			fmt.Print(" ")
+		}
 	}
 
 	if SILLINESS_COUNTER % (len(propaganda)*interval*interval) == 0 {

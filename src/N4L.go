@@ -210,7 +210,7 @@ func main() {
 			fmt.Println("\nUploading to a pre-existing chapter might corrupt the data. You can remove it first with removeN4L or force using -force. It's recommended to rebuilt everything unless replacing the last added chapter(s) for reminders.")
 
 		} else {
-			fmt.Println("Uploading nodes..")
+			fmt.Println("\n\nUploading nodes..")
 			SST.GraphToDB(ctx,true)
 		}
 
@@ -1158,7 +1158,7 @@ func SkipWhiteSpace(src []rune, pos int) int {
 
 func AddMandatory() {
 
-	SST.RegisterContext(nil,nil)
+	SST.RegisterContext(nil,[]string{"any"})  // Register and empty
 
 	// empty link for orphans to retain context
 
@@ -2002,9 +2002,10 @@ func AddBackAnnotations(cleantext string,cleanptr SST.NodePtr,annotated string) 
 		} else {
 			if !protected {
 				skip,symb := EmbeddedSymbol([]rune(annotated),r)
+
 				if skip > 0 {
 					link := GetLinkArrowByName(ANNOTATION[symb])
-					this_item := ExtractWord(annotated,r)
+					this_item := ExtractWord(annotated,r+skip)
 					this_iptr,_ := IdempAddNode(this_item)
 					IdempAddLink(reminder,cleanptr,link,this_item,this_iptr)
 					r += skip-1
@@ -2066,11 +2067,12 @@ func ExtractWord(fulltext string,offset int) string {
 	var word []rune
 	var pair_quote string
 
-	for r := offset+1; r < len(runetext); r++ {
+	for r := offset; r < len(runetext); r++ {
 
 		if runetext[r] == '"' || runetext[r] == '\'' {
 			protected = !protected
 			pair_quote = string(runetext[r]) + " "
+			continue
 		}
 
 		if !protected && !unicode.IsLetter(rune(runetext[r])) {
