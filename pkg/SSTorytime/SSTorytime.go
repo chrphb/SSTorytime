@@ -4873,8 +4873,8 @@ func AssignStoryCoordinates(axis []Link,nth,swimlanes int,limit int) map[NodePtr
 
 	for tz := 0; tz < maxlen_tz; tz++ {
 
-		var unique_section = make([]NodePtr,0)
-		
+		var unique_section = make([]NodePtr,0)	
+
 		if !already[axis[tz].Dst] {
 			unique_section = append(unique_section,axis[tz].Dst)
 			already[axis[tz].Dst] = true
@@ -4889,21 +4889,73 @@ func AssignStoryCoordinates(axis []Link,nth,swimlanes int,limit int) map[NodePtr
 
 // **************************************************************************
 
-func AssignPageCoordinates(mapline []Link,nth,swimlanes int) map[NodePtr]Coords {
+func AssignPageCoordinates(maplines []PageMap) map[NodePtr]Coords {
 
-	XChannels := make([]float64,len(mapline))        // node widths along the path
+	// Make a quasi causal cone [width][depth] to span the geometry
 
-	var unique = make([][]NodePtr,len(mapline))
-	var unique_section = make([]NodePtr,1)
+	var directory = make(map[NodePtr]Coords)
+	var already = make(map[NodePtr]bool)
+	var axis []NodePtr
+	var satellites = make(map[NodePtr][]NodePtr)
+	var allnotes int
 
-	for tz := 0; tz < len(mapline); tz++ {
-		nptr := mapline[tz].Dst
-		XChannels[tz] = 1
-		unique_section[0] = nptr
-		unique[tz] = unique_section
+	// Order unique axial leads and satellite notes
+
+	for depth := 0; depth < len(maplines); depth++ {
+
+		axial_nptr := maplines[depth].Path[0].Dst
+
+		if !already[axial_nptr] {
+			allnotes++
+			already[axial_nptr] = true
+			axis = append(axis,axial_nptr)
+		}
+
+		axis := maplines[depth].Path[0].Dst
+
+		for sat := 1; sat < len(maplines[depth].Path); sat++ {
+			orbit := maplines[depth].Path[sat].Dst
+			if !already[orbit] {
+				satellites[axis] = append(satellites[axis],orbit)
+				already[orbit] = true
+			}
+		}
 	}
 
-	return MakeCoordinateDirectory(XChannels,unique,len(mapline),nth,swimlanes)
+	const screen = 2.0
+	const z_start = -1.0
+	var zinc = screen / float64(allnotes)
+
+	for tz := 0; tz < len(axis); tz++ {
+
+		var leader Coords
+
+		leader.X = 0
+		leader.Y = 0
+		leader.Z = z_start + float64(tz) * zinc
+
+		directory[axis[tz]] = leader
+
+		// Arrange the notes orbitally around the leader
+
+		satrange := float64(len(satellites[axis[tz]]))
+
+		for i,sat := range(satellites[axis[tz]]) {
+
+			pos := float64(i)
+			radius := 0.3
+			var satc Coords
+			nptr := sat
+			satc.X = pos * radius * math.Cos(2.0 * pos * math.Pi/satrange)
+			satc.Y = pos * radius * math.Sin(2.0 * pos * math.Pi/satrange)
+			satc.Z = leader.Z
+
+			directory[nptr] = satc
+		}
+
+	}
+
+	return directory
 }
 
 // **************************************************************************
@@ -5013,11 +5065,12 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 
 	var directory = make(map[NodePtr]Coords)
 
-	const totwidth = 2.0 // This is the depth dimenion of the paths -1 to +1
+	const totwidth = 2.0 // This is the width dimenion of the paths -1 to +1
+	const totdepth = 2.0 // This is the depth dimenion of the paths -1 to +1
 	const arbitrary_elevation = 0.0
 
 	x_lanewidth := totwidth / (float64(swimlanes))
-	tz_steplength := totwidth / float64(maxzlen) 
+	tz_steplength := totdepth / float64(maxzlen) 
 
 	x_lane_start := float64(nth) * x_lanewidth - totwidth/2.0
 
@@ -5036,6 +5089,8 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 		xyz.X = x_left
 		xyz.Y = arbitrary_elevation
 		xyz.Z = z_left + tz_steplength * float64(tz)
+
+		// Each cross section, at depth tz
 
 		for uniqptr := 0; uniqptr < len(unique[tz]); uniqptr++ {
 			directory[unique[tz][uniqptr]] = xyz
@@ -6722,6 +6777,8 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 	var signalchap, signalctx, signalchange string
 	var warned bool = false
 
+	directory := AssignPageCoordinates(maplines)
+
 	for n := 0; n < len(maplines); n++ {
 
 		var path []WebPath
@@ -6732,7 +6789,7 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 
 		if lastchap != maplines[n].Chapter {
 			if !warned {
-				webnotes.Title = "(Multiple chapters) : " + webnotes.Title
+				webnotes.Title = webnotes.Title
 				warned = true
 			}
 			webnotes.Title += maplines[n].Chapter + ", "
@@ -6751,8 +6808,6 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 		}
 
 		signalchange = signalchap + " :: " + signalctx
-
-		directory := AssignPageCoordinates(maplines[n].Path,n,len(maplines))
 
 		// Next line item
 
@@ -6785,7 +6840,6 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 				ws.Chp = maplines[n].Chapter
 				ws.Ctx = signalchange
 				path = append(path,ws)
-				
 			}
 		}
 		// Next line
@@ -7139,6 +7193,7 @@ const (
 	CMD_AS = "\\as"
 	CMD_CHAPTER = "\\chapter"
 	CMD_CONTENTS = "\\contents"
+	CMD_TOC = "\\toc"
 	CMD_SECTION = "\\section"
 	CMD_IN = "\\in"
 	CMD_ARROW = "\\arrow"
@@ -7147,6 +7202,8 @@ const (
 	CMD_RANGE = "\\range"
 	CMD_DISTANCE = "\\distance"
 	CMD_STATS = "\\stats"
+	CMD_REMIND = "\\remind"
+	CMD_HELP = "\\help"
 )
 
 //******************************************************************
@@ -7160,12 +7217,14 @@ func DecodeSearchField(cmd string) SearchParameters {
 		CMD_PATH,CMD_FROM,CMD_TO,
 		CMD_SEQ1,CMD_SEQ2,CMD_STORY,CMD_STORIES,
 		CMD_CONTEXT,CMD_CTX,CMD_AS,
-		CMD_CHAPTER,CMD_IN,CMD_SECTION,CMD_CONTENTS,
+		CMD_CHAPTER,CMD_IN,CMD_SECTION,CMD_CONTENTS,CMD_TOC,
 		CMD_ARROW,
 		CMD_ON,CMD_ABOUT,CMD_FOR,
 		CMD_PAGE,
 		CMD_LIMIT,CMD_RANGE,CMD_DISTANCE,CMD_DEPTH,
 		CMD_STATS,
+		CMD_REMIND,
+		CMD_HELP,
         }
 	
 	// parentheses are reserved for unaccenting
@@ -7247,7 +7306,12 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				param.Stats = true
 				continue
 
-			case CMD_CHAPTER, CMD_IN, CMD_CONTENTS:
+			case CMD_HELP:
+				param.Chapter = "SSTorytime help"
+				param.Name = []string{"any"}
+				continue
+
+			case CMD_CHAPTER, CMD_SECTION, CMD_IN, CMD_CONTENTS, CMD_TOC:
 				if lenp > p+1 {
 					str := cmd_parts[c][p+1]
 					str = strings.TrimSpace(str)
