@@ -647,8 +647,8 @@ func Configure(ctx PoSST,load_arrows bool) {
 		ctx.DB.QueryRow("drop function empty_path")
 		ctx.DB.QueryRow("drop function match_arrows")
 		ctx.DB.QueryRow("drop function ArrowInList")
-		ctx.DB.QueryRow("drop function GetStoryStartNodes")
 		ctx.DB.QueryRow("drop function GetNCCStoryStartNodes")
+		ctx.DB.QueryRow("drop function GetStoryStartNodes")
 		ctx.DB.QueryRow("drop function GetAppointments")
 		ctx.DB.QueryRow("drop function UnCmp")
 		ctx.DB.QueryRow("drop function DeleteChapter")
@@ -2880,39 +2880,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
-	// ***********************************
-	// Find the start of story paths, where outgoing nodes match but no incoming
-	// This means we've reached the top of a hierarchy
-	// ***********************************
-
-	// Find the node that sit's at the start/top of a causal chain
-
-	qstr =  "CREATE OR REPLACE FUNCTION GetStoryStartNodes(arrow int,inverse int,sttype int)\n"+
-		"RETURNS NodePtr[] AS $fn$\n"+
-		"DECLARE \n"+
-		"   retval nodeptr[] = ARRAY[]::nodeptr[];\n"+
-		"BEGIN\n"+
-		"   CASE sttype \n"
-	
-	for st := -EXPRESS; st <= EXPRESS; st++ {
-		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"   SELECT array_agg(Nptr) into retval FROM Node WHERE ArrowInList(arrow,%s) AND NOT ArrowInList(inverse,%s);\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
-	}
-	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
-		"END CASE;\n" +
-		"    RETURN retval; \n" +
-		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n"
-
-	row,err = ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("FAILED \n",qstr,err)
-	}
-
-	row.Close()
-
-	// HELPER
+	//
 
 	qstr =  "CREATE OR REPLACE FUNCTION UnCmp(value text,unacc boolean)\n"+
 		"RETURNS text AS $fn$\n"+
@@ -2939,21 +2907,46 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Find the node that sits at the start/top of a causal chain
 
-	qstr =  "CREATE OR REPLACE FUNCTION GetNCCStoryStartNodes(arrow int,inverse int,sttype int,name text,chapter text,context text[],rm_nm boolean, rm_ch boolean)\n"+
-		"RETURNS NodePtr[] AS $fn$\n"+
+	qstr =  "CREATE OR REPLACE FUNCTION IsStoryStartNode(this NodePtr,arrow int,inverse int,sttype int,maxlimit int)\n"+
+		"RETURNS boolean AS $fn$\n"+
 		"DECLARE \n"+
-		"   retval nodeptr[] = ARRAY[]::nodeptr[];\n"+
-		"   lowname text = lower(name);"+
-		"   lowchap text = lower(chapter);"+
+		"   fwd    Link[];\n"+
+		"   bwd    Link[];\n"+
+		"   lnk    Link;\n"+
+		"   nd      Node;\n"+
+		"   a      int;\n"+
+		"   st     int;\n"+
+		"   okf    boolean;\n"+
 		"BEGIN\n"+
-		"     CASE sttype \n"
+
+		"CASE sttype \n"
 	for st := -EXPRESS; st <= EXPRESS; st++ {
-		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT array_agg(Nptr) into retval FROM Node WHERE (UnCmp(S,rm_nm) LIKE lower(name)) AND (UnCmp(Chap,rm_ch) LIKE lower(chapter)) AND ArrowInContextList(arrow,%s,context) AND NOT ArrowInContextList(inverse,%s,context);\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
+		qstr += fmt.Sprintf("   WHEN %d THEN\n"+
+			"            SELECT %s,%s INTO fwd,bwd FROM Node WHERE NOT L=0 AND NPtr=this LIMIT maxlimit;\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
 	}
-	qstr += "        ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
-		"     END CASE;\n" +
-		"  RETURN retval; \n" +
+	
+	qstr += "      ELSE RAISE EXCEPTION 'No such sttype %', st;\n" +
+		"END CASE;\n" +
+
+		// Do we find arrow but NOT inverse
+
+		"FOREACH lnk IN ARRAY fwd LOOP\n"+
+		"   IF lnk.Arr = arrow THEN"+
+		"      okf = true;\n"+
+		"   END IF;"+
+		"END LOOP;\n" +
+
+		"IF st = 0 THEN\n"+
+		"   RETURN okf;\n"+
+		"ELSE\n"+
+		"   FOREACH lnk IN ARRAY bwd LOOP\n"+
+		"      IF lnk.Arr = inverse THEN"+
+		"         RETURN false;\n"+
+		"      END IF;"+
+		"   END LOOP;\n" +
+		"   RETURN okf;"+
+		"END IF;\n"+
+		"RETURN false;\n" +
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
@@ -3668,7 +3661,7 @@ func GetDBNodePtrMatchingNCC(ctx PoSST,nm,chap string,cn []string,arrow []ArrowP
 	nm = SQLEscape(nm)
 	chap = SQLEscape(chap)
 
-	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY L LIMIT %d",NodeWhereString(nm,chap,cn,arrow),limit)
+	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY NPtr,L LIMIT %d",NodeWhereString(nm,chap,cn,arrow),limit)
 
 	row, err := ctx.DB.Query(qstr)
 
@@ -3956,88 +3949,42 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 // **************************************************************************
 
-func GetNodesStartingStoriesForArrow(ctx PoSST,arrow string) ([]NodePtr,int) {
-
-	// Find the head / starting node matching an arrow sequence.
-	// It has outgoing (+sttype) but not incoming (-sttype) arrow
+func GetNCCNodesStartingStoriesForArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
 
 	var matches []NodePtr
 
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
+	// Need to take each arrow type at a time
 
-	qstr := fmt.Sprintf("select GetStoryStartNodes(%d,%d,%d)",arrowptr,INVERSE_ARROWS[arrowptr],sttype)
-		
-	row,err := ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("GetNodesStartingStoriesForArrow failed\n",qstr,err)
-		return nil,0
-	}
-	
-	var nptrstring string
-	
-	for row.Next() {		
-		err = row.Scan(&nptrstring)
-		matches = ParseSQLNPtrArray(nptrstring)
-	}
-	
-	row.Close()
+	for _,n := range nodeptrs {
 
-	return matches,sttype
-}
+		for a := 0; a < len(arrowptrs); a++ {
 
-// **************************************************************************
+			inv := INVERSE_ARROWS[arrowptrs[a]]
 
-func GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,name,chapter string,context []string) []NodePtr {
+			qstr := fmt.Sprintf("select IsStoryStartNode('(%d,%d)'::NodePtr,%d,%d,%d,%d)",n.Class,n.CPtr,arrowptrs[a],inv,sttypes[a],limit)
+			fmt.Println(qstr)
+			row,err := ctx.DB.Query(qstr)
+			
+			if err != nil {
+				fmt.Println("GetNodesNCCStartingStoriesForArrow failed\n",qstr,err)
+				return nil
+			}
+			
+			var yesno bool
+			
+			for row.Next() {		
+				err = row.Scan(&yesno)
+			}
 
-	// Filtered version of function
-	// Find the head / starting node matching an arrow sequence.
-	// It has outgoing (+sttype) but not incoming (-sttype) arrow
-
-	var matches []NodePtr
-	var qstr string
-
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
-
-	remove_name_accents,nm_stripped := IsBracketedSearchTerm(name)
-	remove_chap_accents,chap_stripped := IsBracketedSearchTerm(chapter)
-
-	chp := "%"+chap_stripped+"%"
-	nm := "%"+nm_stripped+"%"
-	cntx := FormatSQLStringArray(context)
-
-	rm_nm := "false"
-	rm_ch := "false"
-
-	if remove_name_accents {
-		rm_nm = "true"
+			if yesno {
+				matches = append(matches,n)
+			}
+			
+			row.Close()
+		}
 	}
 
-	if remove_chap_accents {
-		rm_ch = "true"
-	}
-
-	// look for _title_ in context
-
-	qstr = fmt.Sprintf("select GetNCCStoryStartNodes(%d,%d,%d,'%s','%s',%s,%s,%s)",arrowptr,INVERSE_ARROWS[arrowptr],sttype,nm,chp,cntx,rm_nm,rm_ch)
-
-	row,err := ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("GetNodesNCCStartingStoriesForArrow failed\n",qstr,err)
-		return nil
-	}
-	
-	var nptrstring string
-
-	for row.Next() {		
-		err = row.Scan(&nptrstring)
-		match := ParseSQLNPtrArray(nptrstring)
-		matches = append(matches,match...)
-	}
-	
-	row.Close()
-
+	fmt.Println("GOT ",matches)
 	return matches
 }
 
@@ -4049,6 +3996,13 @@ func GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int) {
 
 	if ARROW_DIRECTORY_TOP == 0 {
 		DownloadArrowsFromDB(ctx)
+	}
+
+	s = strings.Trim(s,"!")
+
+	if s == "" {
+		fmt.Println("No such arrow found in database:",s)
+		return 0,0
 	}
 
 	for a := range ARROW_DIRECTORY {
@@ -4072,9 +4026,23 @@ func GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr {
 		DownloadArrowsFromDB(ctx)
 	}
 
-	for a := range ARROW_DIRECTORY {
-		if SimilarString(ARROW_DIRECTORY[a].Long,s) || SimilarString(ARROW_DIRECTORY[a].Short,s) {
-			list = append(list,ARROW_DIRECTORY[a].Ptr)
+	trimmed := strings.Trim(s,"!")
+
+	if trimmed == "" {
+		return list
+	}
+
+	if trimmed != s {
+		for a := range ARROW_DIRECTORY {
+			if ARROW_DIRECTORY[a].Long==trimmed || ARROW_DIRECTORY[a].Short==trimmed {
+				list = append(list,ARROW_DIRECTORY[a].Ptr)
+			}
+		}
+	} else {
+		for a := range ARROW_DIRECTORY {
+			if SimilarString(ARROW_DIRECTORY[a].Long,s) || SimilarString(ARROW_DIRECTORY[a].Short,s) {
+				list = append(list,ARROW_DIRECTORY[a].Ptr)
+			}
 		}
 	}
 
@@ -4087,6 +4055,12 @@ func GetDBArrowByName(ctx PoSST,name string) ArrowPtr {
 
 	if ARROW_DIRECTORY_TOP == 0 {
 		DownloadArrowsFromDB(ctx)
+	}
+
+	name = strings.Trim(name,"!")
+
+	if name == "" {
+		return 0
 	}
 
 	ptr, ok := ARROW_SHORT_DIR[name]
@@ -4174,6 +4148,7 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 				if arrowptr > 0 {
 					arrdir := GetDBArrowByPtr(ctx,arrowptr)
 					arr = append(arr,arrdir.Ptr)
+					stt = append(stt,STIndexToSTType(arrdir.STAindex))
 				}
 			}
 		} else {
@@ -4185,6 +4160,7 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 				// whatever remains can only be an arrowpointer
 				arrdir := GetDBArrowByPtr(ctx,ArrowPtr(number))
 				arr = append(arr,arrdir.Ptr)
+				stt = append(stt,STIndexToSTType(arrdir.STAindex))
 			}
 		}
 	}
@@ -5869,18 +5845,14 @@ func IdempAddNote(list []Orbit, item Orbit) []Orbit {
 //
 // **************************************************************************
 
-func GetSequenceContainers(ctx PoSST,arrname string,search,chapter string,context []string, limit int) []Story {
+func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []Story {
 
 	var stories []Story
 
-	if arrname == "" {
-		arrname = "then"
-	}
+	openings := GetNCCNodesStartingStoriesForArrow(ctx,nodeptrs,arrowptrs,sttypes,limit)
 
-	var count int
-
-	arrowptr,_ := GetDBArrowsWithArrowName(ctx,arrname)
-	openings := GetNCCNodesStartingStoriesForArrow(ctx,arrname,search,chapter,context)
+	arrname := ""
+	count := 0
 
 	for nth := range openings {
 
@@ -5890,15 +5862,18 @@ func GetSequenceContainers(ctx PoSST,arrname string,search,chapter string,contex
 
 		story.Chapter = node.Chap
 
-		axis := GetLongestAxialPath(ctx,openings[nth],arrowptr)
+		axis := GetLongestAxialPath(ctx,openings[nth],arrowptrs[0])
 
 		directory := AssignStoryCoordinates(axis,nth,len(openings),limit)
 
 		for lnk := 0; lnk < len(axis); lnk++ {
 			
 			// Now add the orbit at this node, not including the axis
+
 			var ne NodeEvent
+
 			nd := GetDBNodeByNodePtr(ctx,axis[lnk].Dst)
+
 			ne.Text = nd.S
 			ne.L = nd.L
 			ne.Chap = nd.Chap
