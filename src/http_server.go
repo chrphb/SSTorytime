@@ -153,6 +153,10 @@ func SearchN4LHandler(w http.ResponseWriter, r *http.Request) {
 		if len(name) == 0 || name == "\\remind" {
 			name = "any \\chapter reminders \\context " + key + " " + ambient
 		}
+
+		if len(name) == 0 || name == "\\help" {
+			name = "\\notes \\chapter \"help and search\" \\limit 40"
+		}
 		
 		search := SST.DecodeSearchField(name)
 
@@ -226,11 +230,7 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 	if search.Range > 0 {
 		limit = search.Range
 	} else {
-		if from || to {
-			limit = 30 // many paths make hard work
-		} else {
-			limit = 10
-		}
+		limit = 30 // many paths make hard work
 	}
 
 	fmt.Println("Your starting expression generated this set: ",line,"\n")
@@ -246,9 +246,14 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 	fmt.Println(" - show stats:",search.Stats)
 	fmt.Println()
 
-	nodeptrs := SST.SolveNodePtrs(CTX,search.Name,search.Chapter,search.Context,arrowptrs,limit)
-	leftptrs := SST.SolveNodePtrs(CTX,search.From,search.Chapter,search.Context,arrowptrs,limit)
-	rightptrs := SST.SolveNodePtrs(CTX,search.To,search.Chapter,search.Context,arrowptrs,limit)
+	var nodeptrs,leftptrs,rightptrs []SST.NodePtr
+
+	if !pagenr && !sequence {
+		leftptrs = SST.SolveNodePtrs(CTX,search.From,search,arrowptrs,limit)
+		rightptrs = SST.SolveNodePtrs(CTX,search.To,search,arrowptrs,limit)
+	}
+
+	nodeptrs = SST.SolveNodePtrs(CTX,search.Name,search,arrowptrs,limit)
 
 	fmt.Println("Solved search nodes ...")
 
@@ -323,7 +328,7 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 
 	// Look for axial trails following a particular arrow, like _sequence_ 
 
-	if name && sequence || sequence && arrows {
+	if sequence {
 		HandleStories(w,r,CTX,search,nodeptrs,arrowptrs,sttype,limit)
 		return
 	}
@@ -585,25 +590,24 @@ func HandleStories(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,search S
 
 	jarray := ""
 
-	for s := range stories {
+	for s := 0; s < len(stories); s++ {
+
 		var jstory string
-		
+
 		for a := 0; a < len(stories[s].Axis); a++ {
 			jstr := JSONStoryNodeEvent(stories[s].Axis[a])
 			jstory += fmt.Sprintf("%s,",jstr)
 		}
+
 		jstory = strings.Trim(jstory,",")
-		jarray += fmt.Sprintf("[%s],",jstory)
+		jarray = fmt.Sprintf("[%s],",jstory)
 	}
 
-	if jarray == "" {
-		jarray = "[]"
-	}
+	jarray = strings.Trim(jarray,",")
 
-	data := strings.Trim(jarray,",")
-	response := PackageResponse(ctx,search,"Sequence",data)
+	response := PackageResponse(ctx,search,"Sequence",jarray)
 
-	fmt.Println("Sequence...",string(response))
+	//fmt.Println("Sequence...",string(response))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
@@ -646,21 +650,23 @@ func HandleMatchingArrows(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,s
 		arrows = append(arrows,al)
 	}
 
-	for st := range sttype {
-		adirs := SST.GetDBArrowBySTType(ctx,sttype[st])
-		for adir := range adirs {
-			inv := SST.GetDBArrowByPtr(ctx,SST.INVERSE_ARROWS[adirs[adir].Ptr])
-
-			var al ArrowList
-			al.ArrPtr = adirs[adir].Ptr
-			al.ASTtype = SST.STIndexToSTType(adirs[adir].STAindex)
-			al.Short = adirs[adir].Short
-			al.Long = adirs[adir].Long
-			al.InvPtr = inv.Ptr
-			al.ISTtype = SST.STIndexToSTType(inv.STAindex)
-			al.InvS = inv.Short
-			al.InvL = inv.Long
-			arrows = append(arrows,al)
+	if arrowptrs == nil {
+		for st := range sttype {
+			adirs := SST.GetDBArrowBySTType(ctx,sttype[st])
+			for adir := range adirs {
+				inv := SST.GetDBArrowByPtr(ctx,SST.INVERSE_ARROWS[adirs[adir].Ptr])
+				
+				var al ArrowList
+				al.ArrPtr = adirs[adir].Ptr
+				al.ASTtype = SST.STIndexToSTType(adirs[adir].STAindex)
+				al.Short = adirs[adir].Short
+				al.Long = adirs[adir].Long
+				al.InvPtr = inv.Ptr
+				al.ISTtype = SST.STIndexToSTType(inv.STAindex)
+				al.InvS = inv.Short
+				al.InvL = inv.Long
+				arrows = append(arrows,al)
+			}
 		}
 	}
 
@@ -743,7 +749,7 @@ func ShowChapterContexts(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,se
 	data,_ := json.Marshal(chapters)
 	response := PackageResponse(ctx,search,"TOC",string(data))
 
-	//fmt.Println("Chap/context...",string(response))
+	fmt.Println("Chap/context...",string(response))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
@@ -801,17 +807,27 @@ func JSONStoryNodeEvent(en SST.NodeEvent) string {
 
 	var jstr string
 
+//	j,_ := json.Marshal(en)
+
+//	jstr = string(j)
+
 	if len(en.Text) == 0 {
 		return ""
 	}
 
 	t,_ := json.Marshal(en.Text)
 	text := SST.EscapeString(string(t))
+	text = SST.SQLEscape(text)
+
 	jstr += fmt.Sprintf("{\"Text\": \"%s\",\n",text)
 	jstr += fmt.Sprintf("\"L\": \"%d\",\n",en.L)
+
 	c,_ := json.Marshal(en.Chap)
 	chap := SST.EscapeString(string(c))
+	chap = SST.SQLEscape(chap)
+
 	jstr += fmt.Sprintf("\"Chap\": \"%s\",\n",chap)
+
 	jstr += fmt.Sprintf("\"Context\": \"%s\",\n",SST.EscapeString(en.Context))
 	jstr += fmt.Sprintf("\"NPtr\": { \"Class\": \"%d\", \"CPtr\" : \"%d\"},\n",en.NPtr.Class,en.NPtr.CPtr)
 	jxyz,_ := json.Marshal(en.XYZ)
@@ -829,7 +845,9 @@ func JSONStoryNodeEvent(en SST.NodeEvent) string {
 		}
 		arrays += arr
 	}
+
 	arrays = strings.Trim(arrays,",")
+
 	jstr += fmt.Sprintf("\"Orbits\": [%s] }",arrays)
 	return jstr
 }

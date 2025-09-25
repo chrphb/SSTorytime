@@ -35,6 +35,9 @@ const (
 	ROLE_ABBR = 33
 	LARGE_FILE = 500000
 
+	SEQ_UNKNOWN = false
+	SEQ_START = true
+
 	ROLE_EVENT = 1
 	ROLE_RELATION = 2
 	ROLE_SECTION = 3
@@ -101,7 +104,10 @@ var (
 	CONTEXT_STATE = make(map[string]bool)
 	SECTION_STATE string
 
+	// Sequence mode state
+
 	SEQUENCE_MODE bool = false
+	SEQUENCE_START bool = false
 	SEQUENCE_RELN string = "then" 
 	LAST_IN_SEQUENCE string = ""
 
@@ -307,6 +313,7 @@ func NewFile(filename string) {
 	LINE_RELN_COUNTER = 0
 	LINE_ALIAS = ""
 	LAST_IN_SEQUENCE = ""
+	SEQUENCE_MODE = false
 	FWD_ARROW = ""
 	BWD_ARROW = ""
 	SECTION_STATE = ""
@@ -1473,6 +1480,7 @@ func CheckChapter(name string) {
 	}
 
 	SEQUENCE_MODE = false
+	SEQUENCE_START = false
 }
 
 //**************************************************************
@@ -1536,7 +1544,7 @@ func IdempAddLink(from string, frptr SST.NodePtr, link SST.Link,to string, toptr
 
 func HandleNode(annotated string) SST.NodePtr {
 
-	clean_ptr,clean_version := IdempAddNode(annotated)
+	clean_ptr,clean_version := IdempAddNode(annotated,SEQ_UNKNOWN)
 
 	PVerbose("Event/item/node:",clean_version,"in chapter",SECTION_STATE)
 
@@ -1558,7 +1566,7 @@ func HandleNode(annotated string) SST.NodePtr {
 
 //**************************************************************
 
-func IdempAddNode(s string) (SST.NodePtr,string) {
+func IdempAddNode(s string,intended_sequence bool) (SST.NodePtr,string) {
 
 	clean_version := StripAnnotations(s)
 
@@ -1567,12 +1575,14 @@ func IdempAddNode(s string) (SST.NodePtr,string) {
 	var new_nodetext SST.Node
 	new_nodetext.S = clean_version
 	new_nodetext.L = l
+	new_nodetext.Seq = new_nodetext.Seq || intended_sequence
 	new_nodetext.Chap = SECTION_STATE
 	new_nodetext.NPtr.Class = c
 
 	iptr := SST.AppendTextToDirectory(new_nodetext,ParseError)
 
 	// Build page map
+
 	if LINE_PATH == nil {
 		var leg SST.Link
 		leg.Dst = iptr
@@ -1919,11 +1929,13 @@ func CheckSequenceMode(context string, mode rune) {
 		case '+':
 			PVerbose("\nStart sequence mode for items")
 			SEQUENCE_MODE = true
+			SEQUENCE_START = true
 			LAST_IN_SEQUENCE = ""
 
 		case '-':
 			PVerbose("End sequence mode for items\n")
 			SEQUENCE_MODE = false
+			SEQUENCE_START = false
 		}
 	}
 
@@ -1940,9 +1952,17 @@ func LinkUpStorySequence(this string) {
 		if LINE_ITEM_COUNTER == 1 && LAST_IN_SEQUENCE != "" {
 			
 			PVerbose("* ... Sequence addition: ",LAST_IN_SEQUENCE,"-(",SEQUENCE_RELN,")->",this,"\n")
-			
-			last_iptr,_ := IdempAddNode(LAST_IN_SEQUENCE)
-			this_iptr,_ := IdempAddNode(this)
+
+			var last_iptr SST.NodePtr
+
+			if SEQUENCE_START {
+				last_iptr,_ = IdempAddNode(LAST_IN_SEQUENCE,SEQ_START)
+				SEQUENCE_START = false
+			} else {
+				last_iptr,_ = IdempAddNode(LAST_IN_SEQUENCE,SEQ_UNKNOWN)
+			}
+
+			this_iptr,_ := IdempAddNode(this,SEQ_UNKNOWN)
 			link := GetLinkArrowByName("(then)")
 			SST.AppendLinkToNode(last_iptr,link,this_iptr)
 
@@ -2006,7 +2026,7 @@ func AddBackAnnotations(cleantext string,cleanptr SST.NodePtr,annotated string) 
 				if skip > 0 {
 					link := GetLinkArrowByName(ANNOTATION[symb])
 					this_item := ExtractWord(annotated,r+skip)
-					this_iptr,_ := IdempAddNode(this_item)
+					this_iptr,_ := IdempAddNode(this_item,SEQ_UNKNOWN)
 					IdempAddLink(reminder,cleanptr,link,this_item,this_iptr)
 					r += skip-1
 					continue

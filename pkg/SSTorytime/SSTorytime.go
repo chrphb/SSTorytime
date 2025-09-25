@@ -120,6 +120,7 @@ type Node struct {
 	L         int     // length of text string
 	S         string  // text string itself
 
+	Seq       bool    // true if this node begins an intended sequence, otherwise ambiguous
 	Chap      string  // section/chapter name in which this was added
 	NPtr      NodePtr // Pointer to self index
 
@@ -289,6 +290,7 @@ const NODE_TABLE = "CREATE TABLE IF NOT EXISTS Node " +
 	"Search    TSVECTOR GENERATED ALWAYS AS (to_tsvector('english',S)) STORED,\n" +
 	"UnSearch  TSVECTOR GENERATED ALWAYS AS (to_tsvector('english',sst_unaccent(S))) STORED,\n" +
 	"Chap      text,           \n" +
+	"Seq       boolean,        \n" +
 	I_MEXPR+"  Link[],         \n" + // Im3
 	I_MCONT+"  Link[],         \n" + // Im2
 	I_MLEAD+"  Link[],         \n" + // Im1
@@ -655,7 +657,7 @@ func Configure(ctx PoSST,load_arrows bool) {
 
 		ctx.DB.QueryRow("drop function lastsawsection(text)")
 		ctx.DB.QueryRow("drop function lastsawnptr(nodeptr)")
-		
+
 		ctx.DB.QueryRow("drop type NodePtr")
 		ctx.DB.QueryRow("drop type Link")
 		ctx.DB.QueryRow("drop type Appointment")
@@ -932,7 +934,7 @@ func AppendTextToDirectory(event Node,ErrFunc func(string)) NodePtr {
 
 	if ok {
 		node_alloc_ptr.CPtr = cnode_slot
-		IdempAddChapterToNode(node_alloc_ptr.Class,node_alloc_ptr.CPtr,event.Chap)
+		IdempAddChapterSeqToNode(node_alloc_ptr.Class,node_alloc_ptr.CPtr,event.Chap,event.Seq)
 		return node_alloc_ptr
 	}
 
@@ -1056,7 +1058,7 @@ func CheckExistingOrAltCaps(event Node,ErrFunc func(string)) (ClassedNodePtr,boo
 
 //**************************************************************
 
-func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
+func IdempAddChapterSeqToNode(class int,cptr ClassedNodePtr,chap string,seq bool) {
 
 	/* In the DB version, we have handle chapter collisions
            we want all similar names to have a single node for lateral
@@ -1065,25 +1067,12 @@ func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
 
 	var node Node
 
-	switch class {
-	case N1GRAM:
-		node = NODE_DIRECTORY.N1directory[cptr]
-	case N2GRAM:
-		node = NODE_DIRECTORY.N2directory[cptr]
-	case N3GRAM:
-		node = NODE_DIRECTORY.N3directory[cptr]
-	case LT128:
-		node = NODE_DIRECTORY.LT128[cptr]
-	case LT1024:
-		node = NODE_DIRECTORY.LT1024[cptr]
-	case GT1024:
-		node = NODE_DIRECTORY.GT1024[cptr]
-	}
+	node = UpdateSeqStatus(class,cptr,seq)
 
 	if strings.Contains(node.Chap,chap) {
 		return
 	}
-	
+
 	newchap := node.Chap + "," + chap
 
 	switch class {
@@ -1100,6 +1089,37 @@ func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
 	case GT1024:
 		NODE_DIRECTORY.GT1024[cptr].Chap = newchap
 	}
+}
+
+//**************************************************************
+
+func UpdateSeqStatus(class int,cptr ClassedNodePtr,seq bool) Node {
+
+	switch class {
+	case N1GRAM:
+		NODE_DIRECTORY.N1directory[cptr].Seq = NODE_DIRECTORY.N1directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N1directory[cptr]
+	case N2GRAM:
+		NODE_DIRECTORY.N2directory[cptr].Seq = NODE_DIRECTORY.N2directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N2directory[cptr]
+	case N3GRAM:
+		NODE_DIRECTORY.N3directory[cptr].Seq = NODE_DIRECTORY.N3directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N3directory[cptr]
+	case LT128:
+		NODE_DIRECTORY.LT128[cptr].Seq = NODE_DIRECTORY.LT128[cptr].Seq || seq
+		return NODE_DIRECTORY.LT128[cptr]
+	case LT1024:
+		NODE_DIRECTORY.LT1024[cptr].Seq = NODE_DIRECTORY.LT1024[cptr].Seq || seq
+		return NODE_DIRECTORY.LT1024[cptr]
+	case GT1024:
+		NODE_DIRECTORY.GT1024[cptr].Seq = NODE_DIRECTORY.GT1024[cptr].Seq || seq
+		return NODE_DIRECTORY.GT1024[cptr]
+	}
+
+	fmt.Println("Non existent node class (shouldn't happen)")
+	os.Exit(-1)
+	var dummy Node
+	return dummy
 }
 
 //**************************************************************
@@ -1581,7 +1601,7 @@ func ForceDBNode(ctx PoSST, n Node) {
 	// Add node version setting explicit CPtr value, note different function call
 	// We use this function when we ARE managing/counting CPtr values ourselves
 
-	var qstr string
+	var qstr,seqstr string
 
         n.L,n.NPtr.Class = StorageClass(n.S)
 	
@@ -1590,10 +1610,16 @@ func ForceDBNode(ctx PoSST, n Node) {
 	es := SQLEscape(n.S)
 	ec := SQLEscape(n.Chap)
 
-	qstr = fmt.Sprintf("SELECT InsertNode(%d,%d,%d,'%s','%s')",n.L,n.NPtr.Class,cptr,es,ec)
+	if n.Seq {
+		seqstr = "true"
+	} else {
+		seqstr = "false"
+	}
+
+	qstr = fmt.Sprintf("SELECT InsertNode(%d,%d,%d,'%s','%s',%s)",n.L,n.NPtr.Class,cptr,es,ec,seqstr)
 
 	row,err := ctx.DB.Query(qstr)
-	
+
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
 		
@@ -1975,11 +2001,11 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Force for managed input
 
-	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION InsertNode(iLi INT, iszchani INT, icptri INT, iSi TEXT, ichapi TEXT)\n" +
+	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION InsertNode(iLi INT, iszchani INT, icptri INT, iSi TEXT, ichapi TEXT,sequence boolean)\n" +
 		"RETURNS bool AS $fn$ " +
 		"DECLARE \n" +
 		"BEGIN\n" +
-		"   INSERT INTO Node (Nptr.Chan,Nptr.Cptr,L,S,chap,%s) VALUES (iszchani,icptri,iLi,iSi,ichapi,'{}','{}','{}','{}','{}','{}','{}');" +
+		"   INSERT INTO Node (Nptr.Chan,Nptr.Cptr,L,S,chap,Seq,%s) VALUES (iszchani,icptri,iLi,iSi,ichapi,sequence,'{}','{}','{}','{}','{}','{}','{}');" +
 		"   RETURN true;\n"+
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;",cols);
@@ -2904,60 +2930,6 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
-
-	// Find the node that sits at the start/top of a causal chain
-
-	qstr =  "CREATE OR REPLACE FUNCTION IsStoryStartNode(this NodePtr,arrow int,inverse int,sttype int,maxlimit int)\n"+
-		"RETURNS boolean AS $fn$\n"+
-		"DECLARE \n"+
-		"   fwd    Link[];\n"+
-		"   bwd    Link[];\n"+
-		"   lnk    Link;\n"+
-		"   nd      Node;\n"+
-		"   a      int;\n"+
-		"   st     int;\n"+
-		"   okf    boolean;\n"+
-		"BEGIN\n"+
-
-		"CASE sttype \n"
-	for st := -EXPRESS; st <= EXPRESS; st++ {
-		qstr += fmt.Sprintf("   WHEN %d THEN\n"+
-			"            SELECT %s,%s INTO fwd,bwd FROM Node WHERE NOT L=0 AND NPtr=this LIMIT maxlimit;\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
-	}
-	
-	qstr += "      ELSE RAISE EXCEPTION 'No such sttype %', st;\n" +
-		"END CASE;\n" +
-
-		// Do we find arrow but NOT inverse
-
-		"FOREACH lnk IN ARRAY fwd LOOP\n"+
-		"   IF lnk.Arr = arrow THEN"+
-		"      okf = true;\n"+
-		"   END IF;"+
-		"END LOOP;\n" +
-
-		"IF st = 0 THEN\n"+
-		"   RETURN okf;\n"+
-		"ELSE\n"+
-		"   FOREACH lnk IN ARRAY bwd LOOP\n"+
-		"      IF lnk.Arr = inverse THEN"+
-		"         RETURN false;\n"+
-		"      END IF;"+
-		"   END LOOP;\n" +
-		"   RETURN okf;"+
-		"END IF;\n"+
-		"RETURN false;\n" +
-		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n"
-
-	row,err = ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("FAILED \n",qstr,err)
-	}
-
-	row.Close()
-
 	// ...................................................................
 	// Now add in the more complex context/chapter filters in searching
 	// ...................................................................
@@ -3649,19 +3621,19 @@ func GetDBContextByPtr(ctx PoSST,ptr ContextPtr) (string,ContextPtr) {
 
 func GetDBNodePtrMatchingName(ctx PoSST,name,chap string) []NodePtr {
 
-	return GetDBNodePtrMatchingNCC(ctx,name,chap,nil,nil,CAUSAL_CONE_MAXLIMIT)
+	return GetDBNodePtrMatchingNCCS(ctx,name,chap,nil,nil,false,CAUSAL_CONE_MAXLIMIT)
 }
 
 // **************************************************************************
 
-func GetDBNodePtrMatchingNCC(ctx PoSST,nm,chap string,cn []string,arrow []ArrowPtr,limit int) []NodePtr {
+func GetDBNodePtrMatchingNCCS(ctx PoSST,nm,chap string,cn []string,arrow []ArrowPtr,seq bool,limit int) []NodePtr {
 
 	// Order by L to favour exact matches
 
 	nm = SQLEscape(nm)
 	chap = SQLEscape(chap)
 
-	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY NPtr,L LIMIT %d",NodeWhereString(nm,chap,cn,arrow),limit)
+	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY NPtr,L LIMIT %d",NodeWhereString(nm,chap,cn,arrow,seq),limit)
 
 	row, err := ctx.DB.Query(qstr)
 
@@ -3685,7 +3657,7 @@ func GetDBNodePtrMatchingNCC(ctx PoSST,nm,chap string,cn []string,arrow []ArrowP
 
 // **************************************************************************
 
-func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr) string {
+func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr,seq bool) string {
 
 	var chap_col, nm_col string
 	var ctx_col string
@@ -3732,6 +3704,12 @@ func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr) string 
 		nm_col += fmt.Sprintf(" AND lower(S) = '%s'",bare_name)
 	}
 
+        var seq_col string
+        
+        if seq {
+                seq_col = "AND Seq=true"
+        }
+
 	// context and arrows
 
 	_,cn_stripped := IsBracketedSearchList(context)
@@ -3742,8 +3720,8 @@ func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr) string 
 
 	dbcols := I_MEXPR+","+I_MCONT+","+I_MLEAD+","+I_NEAR +","+I_PLEAD+","+I_PCONT+","+I_PEXPR
 
-	qstr = fmt.Sprintf("%s %s AND NCC_match(NPtr,%s,%s,%s,%s)",
-		chap_col,nm_col,ctx_col,arrows,sttypes,dbcols)
+	qstr = fmt.Sprintf("%s %s %s AND NCC_match(NPtr,%s,%s,%s,%s)",
+		chap_col,nm_col,seq_col,ctx_col,arrows,sttypes,dbcols)
 
 	return qstr
 }
@@ -3949,39 +3927,26 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 // **************************************************************************
 
-func GetNCCNodesStartingStoriesForArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
+func SelectStoriesByArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
 
 	var matches []NodePtr
 
-	// Need to take each arrow type at a time
+	// Need to take each arrow type at a time. We can't possibly know if an
+	// intentionally promised sequence start (in Node) refers to one arrow or another,
+	// but, the chance of being a start for several different independent stories is unlikely.
+
+	// We can always search for ad hoc cases with dream/post-processing if not from N4L
+	// Thus a valid story is defined from a start node. It is normally a node with an out-arrow
+	// |- NODE --ARROW-->, i.e. no in-arrow entering, but this may be false if the story has
+	// loops, like a repeated line in a song chorus.
 
 	for _,n := range nodeptrs {
 
-		for a := 0; a < len(arrowptrs); a++ {
+		// All these nodes should have Seq = true already from "SolveNodePtrs()"
+		// So all the searching is finished, we just need to match the requested arrow
 
-			inv := INVERSE_ARROWS[arrowptrs[a]]
-
-			qstr := fmt.Sprintf("select IsStoryStartNode('(%d,%d)'::NodePtr,%d,%d,%d,%d)",n.Class,n.CPtr,arrowptrs[a],inv,sttypes[a],limit)
-			fmt.Println(qstr)
-			row,err := ctx.DB.Query(qstr)
-			
-			if err != nil {
-				fmt.Println("GetNodesNCCStartingStoriesForArrow failed\n",qstr,err)
-				return nil
-			}
-			
-			var yesno bool
-			
-			for row.Next() {		
-				err = row.Scan(&yesno)
-			}
-
-			if yesno {
-				matches = append(matches,n)
-			}
-			
-			row.Close()
-		}
+		node := GetDBNodeByNodePtr(ctx,n)  // we are now caching this for later
+		matches = append(matches,node.NPtr)
 	}
 
 	fmt.Println("GOT ",matches)
@@ -4170,7 +4135,11 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 
 //******************************************************************
 
-func SolveNodePtrs(ctx PoSST,nodenames []string,chap string,cntx []string, arr []ArrowPtr,limit int) []NodePtr {
+func SolveNodePtrs(ctx PoSST,nodenames []string,search SearchParameters,arr []ArrowPtr,limit int) []NodePtr {
+
+	chap := search.Chapter
+	cntx := search.Context
+	seq := search.Sequence
 
 	// This is a UI/UX wrapper for the underlying lookup, avoiding
 	// duplicate results and ordering according to interest
@@ -4189,7 +4158,7 @@ func SolveNodePtrs(ctx PoSST,nodenames []string,chap string,cntx []string, arr [
 	for r := 0; r < len(rest); r++ {
 
 		// Takes care of general context matching
-		nptrs := GetDBNodePtrMatchingNCC(ctx,rest[r],chap,cntx,arr,limit)
+		nptrs := GetDBNodePtrMatchingNCCS(ctx,rest[r],chap,cntx,arr,seq,limit)
 
 		for n := 0; n < len(nptrs); n++ {
 			idempotence[nptrs[n]] = true
@@ -5849,7 +5818,7 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 	var stories []Story
 
-	openings := GetNCCNodesStartingStoriesForArrow(ctx,nodeptrs,arrowptrs,sttypes,limit)
+	openings := SelectStoriesByArrow(ctx,nodeptrs,arrowptrs,sttypes,limit)
 
 	arrname := ""
 	count := 0
@@ -5862,7 +5831,7 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 		story.Chapter = node.Chap
 
-		axis := GetLongestAxialPath(ctx,openings[nth],arrowptrs[0])
+		axis := GetLongestAxialPath(ctx,openings[nth],arrowptrs[0],limit)
 
 		directory := AssignStoryCoordinates(axis,nth,len(openings),limit)
 
@@ -5990,13 +5959,13 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 
 // **************************************************************************
 
-func GetLongestAxialPath(ctx PoSST,nptr NodePtr,arrowptr ArrowPtr) []Link {
+func GetLongestAxialPath(ctx PoSST,nptr NodePtr,arrowptr ArrowPtr,limit int) []Link {
 
 	var max int = 1
-	const maxdepth = 100 // Hard limit on story length, what?
-	const maxlimit = 100 // to be checked !
+
 	sttype := STIndexToSTType(ARROW_DIRECTORY[arrowptr].STAindex)
-	paths,dim := GetFwdPathsAsLinks(ctx,nptr,sttype,maxdepth,maxlimit)
+
+	paths,dim := GetFwdPathsAsLinks(ctx,nptr,sttype,limit,limit)
 
 	for pth := 0; pth < dim; pth++ {
 
@@ -9485,15 +9454,11 @@ func Waiting(output bool,total int) {
 	percent := float64(SILLINESS_COUNTER) / float64(total) * 100
 
 	const propaganda = "IT.ISN'T.KNOWLEDGE.IF.YOU.DON'T.KNOW.IT.!!"
-	const interval = 4
+	const interval = 8
 
 	if SILLINESS {
 		if SILLINESS_COUNTER % interval != 0 {
-			if SILLINESS_COUNTER % 2 != 0 {
-				fmt.Print(".")
-			} else {
-				fmt.Print(" ")
-			}
+			fmt.Print(".")
 		} else {
 			fmt.Print(string(propaganda[SILLINESS_POS]))
 			SILLINESS_POS++

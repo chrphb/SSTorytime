@@ -1402,6 +1402,7 @@ let last_line_start = "";
 let chtxt;
 let child;
 let subline;
+let lastchtxt;
 
 // Line by line
 
@@ -1486,18 +1487,20 @@ for (let line = 0; line < array.length; line++)
             lastline = line;
 
             let line_no = document.createElement("span");
-            line_no.setAttribute("class", "break");
+
             line_no.textContent = "At line " + array[line][i].Line;
             parent.appendChild(line_no);
 
             chtxt = array[line][i].Chp + ":" + array[line][i].Ctx;
 
-            if (chtxt.length > 4) 
+            if (chtxt.length > 4 && chtxt != lastchtxt)
                {
                let sec = document.createElement("i");
                sec.textContent = '  From: "' + chtxt + '"';
                parent.appendChild(sec);
                }
+
+            lastchtxt = chtxt;
 
             child = document.createElement("div");
             child.setAttribute("class", "card-view");
@@ -1532,7 +1535,7 @@ for (let line = 0; line < array.length; line++)
 
             let text = document.createElement("span");
             text.setAttribute("class", "line-view");
-            text.setAttribute("class", "break");
+            //text.setAttribute("class", "break");
             //text.style.cssText = "display: inline-block;";
             text.textContent = str;
             text_link.appendChild(text);
@@ -1759,6 +1762,15 @@ CheckSingleCone(panel,child,"[LT]",event.NPtr.Class,event.NPtr.CPtr,1,event.Orbi
 CheckSingleCone(panel,child,"[CN]",event.NPtr.Class,event.NPtr.CPtr,2,event.Orbits[Im2],event.Orbits[Ic2]);
 CheckSingleCone(panel,child,"[EP]",event.NPtr.Class,event.NPtr.CPtr,3,event.Orbits[Im3],event.Orbits[Ie3]);
 CheckSingleCone(panel,child,"[NR]",event.NPtr.Class,event.NPtr.CPtr,0,event.Orbits[In0],event.Orbits[In0]);
+
+let text2 = document.createElement("i");
+text2.textContent = ", . . . context ";
+child.appendChild(text2);
+
+let ctxlink = document.createElement("a");
+ctxlink.textContent = '"' + event.Context + '"';
+ctxlink.onclick = function () { sendLinkSearch('any \\context "' + CtxSplice(event.Context) + '"'); };
+child.appendChild(ctxlink);
 }
 
 /***********************************************************/
