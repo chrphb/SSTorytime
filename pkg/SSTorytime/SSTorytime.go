@@ -419,6 +419,17 @@ type NodeEvent struct {
 
 //******************************************************************
 
+type WebConePaths struct {
+
+	RootNode   NodePtr
+	Title      string
+	BTWC       []string
+	Paths      [][]WebPath
+	SuperNodes []string
+}
+
+//******************************************************************
+
 type Orbit struct {  // union, JSON transformer
 
 	Radius  int
@@ -6979,7 +6990,7 @@ func TallyPath(ctx PoSST,path []Link,between map[string]int) map[string]int {
 
 // **************************************************************************
 
-func BetweenNessCentrality(ctx PoSST,solutions [][]Link) string {
+func BetweenNessCentrality(ctx PoSST,solutions [][]Link) []string {
 
 	var betweenness = make(map[string]int)
 
@@ -7000,20 +7011,22 @@ func BetweenNessCentrality(ctx PoSST,solutions [][]Link) string {
 
 	sort.Ints(order)
 
-	var betw,retval string
+	var retval []string
+	var betw string
 
 	for key := len(order)-1; key >= 0; key-- {
+
 		betw = fmt.Sprintf("%.2f : ",float32(order[key])/float32(len(solutions)))
+
 		for el := 0; el < len(inv[order[key]]); el++ {
+
 			betw += fmt.Sprintf("%s",inv[order[key]][el])
 			if el < len(inv[order[key]])-1 {
 				betw += ", "
 			}
 		}
-		retval += fmt.Sprintf("\"%s\"",betw)
-		if key > 0 {
-			retval += ","
-		}
+
+		retval =  append(retval,betw)
 	}
 	return retval
 }
@@ -7057,11 +7070,11 @@ func SuperNodesByConicPath(solutions [][]Link, maxdepth int) [][]NodePtr {
 
 // **************************************************************************
 
-func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) string {
+func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) []string {
 
 	supernodes := SuperNodesByConicPath(solutions,maxdepth)
 
-	var retval string
+	var retval []string
 
 	for g := range supernodes {
 
@@ -7074,9 +7087,9 @@ func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) string {
 				super += ", "
 			}
 		}
-		retval += fmt.Sprintf("\"%s\"",super)
+
 		if g < len(supernodes)-1 {
-			retval += ", "
+			retval = append(retval,super)
 		}
 	}
 
