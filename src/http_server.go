@@ -230,7 +230,17 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 	if search.Range > 0 {
 		limit = search.Range
 	} else {
-		limit = 30 // many paths make hard work
+		if from || to || sequence {
+			limit = 30 // many paths make hard work
+		} else {
+			const common_word = 5
+
+			if SST.SearchTermLen(search.Name) < common_word {
+				limit = 5
+			} else {
+				limit = 10
+			}
+		}
 	}
 
 	fmt.Println("Your starting expression generated this set: ",line,"\n")
@@ -423,7 +433,7 @@ func HandleCausalCones(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,nptr
 	array := fmt.Sprintf("[%s]",data)
 
 	response := PackageResponse(ctx,search,"ConePaths",array)
-	//fmt.Println("CasualConePath reponse",string(response))
+	fmt.Println("CasualConePath reponse",string(response))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
@@ -458,11 +468,11 @@ func PackageConeFromOrigin(ctx SST.PoSST,nptr SST.NodePtr,nth int,sttype int,cha
 		os.Exit(-1)
 	}
 
-	title := SST.EscapeString(SST.GetDBNodeByNodePtr(ctx,nptr).S)
+	title,_ := json.Marshal(SST.GetDBNodeByNodePtr(ctx,nptr).S)
 
 	jstr := fmt.Sprintf(" { \"NClass\" : %d,\n",nptr.Class)
 	jstr += fmt.Sprintf("   \"NCPtr\" : %d,\n",nptr.CPtr)
-	jstr += fmt.Sprintf("   \"Title\" : \"%s\",\n",title)  // tbd
+	jstr += fmt.Sprintf("   \"Title\" : %s,\n",string(title))
 	jstr += fmt.Sprintf("   \"Paths\" : %s\n}",string(wstr))	
 
 	return jstr,count

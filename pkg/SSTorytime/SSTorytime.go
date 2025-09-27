@@ -9309,6 +9309,37 @@ func MatchesInContext(s string,context []string) bool {
 // Misc tools
 // **************************************************************************
 
+func SearchTermLen(names []string) int {
+
+	var maxlen int
+
+	for _,s := range names {
+		if !IsNPtrStr(s) && len(s) > maxlen {
+			maxlen = len(s)
+		}
+	}
+
+	return maxlen
+}
+
+// **************************************************************************
+
+func IsNPtrStr(s string) bool {
+
+	s = strings.TrimSpace(s)
+
+	if s[0] == '(' && s[len(s)-1] == ')' {
+		var a,b int = -1,-1
+		fmt.Sscanf(s,"(%d,%d)",&a,&b)
+		if a >= 0 && b >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// **************************************************************************
+
 func RunErr(message string) {
 
 	const red = "\033[31;1;1m"
@@ -9454,6 +9485,7 @@ func Waiting(output bool,total int) {
 	const propaganda = "IT.ISN'T.KNOWLEDGE.IF.YOU.DON'T.KNOW.IT.!!"
 	const interval = 8
 
+
 	if SILLINESS {
 		if SILLINESS_COUNTER % interval != 0 {
 			fmt.Print(".")
@@ -9466,7 +9498,7 @@ func Waiting(output bool,total int) {
 			}
 		}
 	} else {
-		fmt.Print(" ")
+		fmt.Print(".")
 	}
 
 	if SILLINESS_COUNTER % (len(propaganda)*interval*interval) == 0 {
