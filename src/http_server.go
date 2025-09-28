@@ -358,7 +358,7 @@ func HandleSearch(search SST.SearchParameters,line string,w http.ResponseWriter,
 func HandleOrbit(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,search SST.SearchParameters,nptrs []SST.NodePtr,limit int) {
 
 	var count int
-	var array string
+	var array []SST.NodeEvent
 
 	origin := SST.Coords{X : 0.0, Y : 0.0, Z : 0.0}
 
@@ -378,13 +378,12 @@ func HandleOrbit(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,search SST
 		xyz := SST.RelativeOrbit(origin,SST.R0,n,len(nptrs))
 		orb = SST.SetOrbitCoords(xyz,orb)
 
-		array += SST.JSONNodeEvent(CTX,nptrs[n],xyz,orb)
-		array += ","
+		nodeevent := SST.JSONNodeEvent(CTX,nptrs[n],xyz,orb)
+		array = append(array,nodeevent)
 	}
 
-	array = strings.Trim(array,",")
-	content := fmt.Sprintf("[ %s ]",array)
-	response := PackageResponse(ctx,search,"Orbits",content)
+	data,_ := json.Marshal(array)
+	response := PackageResponse(ctx,search,"Orbits",string(data))
 	
 	//fmt.Println("REPLY:\n",string(response))
 
@@ -430,7 +429,7 @@ func HandleCausalCones(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,nptr
 	array,_ := json.Marshal(cones)
 
 	response := PackageResponse(ctx,search,"ConePaths",string(array))
-	fmt.Println("CasualConePath reponse",string(response))
+	//fmt.Println("CasualConePath reponse",string(response))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
@@ -527,7 +526,7 @@ func HandlePathSolve(w http.ResponseWriter, r *http.Request,ctx SST.PoSST,leftpt
 
 			response := PackageResponse(ctx,search,"PathSolve",string(array_pack))
 
-			fmt.Println("PATH SOLVE:",string(response))
+			//fmt.Println("PATH SOLVE:",string(response))
 
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(response)
