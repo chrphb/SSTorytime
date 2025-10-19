@@ -196,7 +196,6 @@ let request = new Request(requestURL);
 
 try
    {
-   RerenderMath();
    let response = await fetch(request);
    startHipnotize();
    let mynote = await response.json();
@@ -242,7 +241,6 @@ function AppRouter()
 
 function DoHeader(obj)
 {
-RerenderMath();
 // Clear the main panel here, as it's common to all
 let clearscreen = document.querySelector("main");
 clearscreen.innerHTML = "";
@@ -1306,53 +1304,51 @@ if (counter == 0)
    }
 
    // ** BEGIN 1: Here we print the full text for column_1of3 either as pre or p
-   if (text.includes("\n"))
+if (text.includes("\n"))
+   {
+   let from_link = document.createElement("a");
+   from_link.onclick = function ()
       {
-      let from_link = document.createElement("a");
-      from_link.onclick = function ()
-         {
-         sendlinkData(event.NPtr.Class, event.NPtr.CPtr);
-         };
+      sendlinkData(event.NPtr.Class, event.NPtr.CPtr);
+      };
 
-      let from_text = document.createElement("pre");
-      from_text.nameClass = "text";
-      from_text.textContent = text;
-      from_link.nameClass = "text";
-      from_link.appendChild(from_text);
+   let from_text = document.createElement("pre");
+   from_text.nameClass = "text";
+   from_text.textContent = text;
+   from_link.nameClass = "text";
+   from_link.appendChild(from_text);
 
-      child.appendChild(from_link);
-      } 
+   child.appendChild(from_link);
+   } 
+else
+   {
+   let from_link = document.createElement("span");
+   from_link.onclick = function ()
+      {
+      sendlinkData(event.NPtr.Class, event.NPtr.CPtr);
+      };
+
+   let from_text = document.createElement(anchortag);
+   from_link.nameClass = "text";
+   from_link.appendChild(from_text);
+   child.appendChild(from_link);
+
+   if (!IsMath(event.Text))
+      {
+      // Insert a card overview title summary (blue)
+      from_text.textContent = event.Text.slice(0, 70) + "...";
+
+      let small_tot_text = document.createElement("div");
+      small_tot_text.textContent = text;
+      small_tot_text.id = "orbital-full-text";
+      child.appendChild(small_tot_text);
+      }
    else
       {
-      let from_link = document.createElement("span");
-      from_link.onclick = function ()
-         {
-         sendlinkData(event.NPtr.Class, event.NPtr.CPtr);
-         };
-
-      let from_text = document.createElement(anchortag);
-      from_link.nameClass = "text";
-      from_link.appendChild(from_text);
-
-      child.appendChild(from_link);
-
-      if (!IsMath(event.Text))
-         {
-	 // Insert a card overview title summary (blue)
-         from_text.textContent = event.Text.slice(0, 70) + "...";
-
-         let small_tot_text = document.createElement("div");
-         small_tot_text.textContent = text;
-         small_tot_text.id = "orbital-full-text";
-         child.appendChild(small_tot_text);
-         }
-      else
-         {
-         from_text.textContent = text; // event.Text;
-         }
+      from_text.textContent = text; // event.Text;
       }
+   }
 
-// If this is the root node, we need to add some Nptr, context info in column_1of3
 if (counter == 0)
    {
    let setting = document.createElement("span");
@@ -1377,7 +1373,7 @@ if (counter == 0)
    let ctxlink = document.createElement("a");
    ctxlink.textContent = '"' + event.Context + '"   ';
 
-   ctxlink.onclick = function ()
+   ctxlink.onclick = function()
       {
       sendLinkSearch('any \\context "' + CtxSplice(event.Context) + '"');
       };
@@ -1626,7 +1622,7 @@ return false;
 
 function IsMath(str)
 {
-if (str.includes("(") && str.includes(")"))
+if (str.includes("\\(") && str.includes("\\)"))
    {
    return true;
    }

@@ -482,7 +482,7 @@ type LastSeen struct {
 
 func Open(load_arrows bool) PoSST {
 
-	var ctx PoSST
+	var sst PoSST
 	var err error
 
 	// Replace this with a private file
@@ -497,14 +497,14 @@ func Open(load_arrows bool) PoSST {
 
         connStr := "user="+user+" dbname="+dbname+" password="+password+" sslmode=disable"
 
-        ctx.DB, err = sql.Open("postgres", connStr)
+        sst.DB, err = sql.Open("postgres", connStr)
 
 	if err != nil {
 	   	fmt.Println("Error connecting to the database: ", err)
 		os.Exit(-1)
 	}
 	
-	err = ctx.DB.Ping()
+	err = sst.DB.Ping()
 	
 	if err != nil {
 		fmt.Println("Error pinging the database: ", err)
@@ -512,12 +512,12 @@ func Open(load_arrows bool) PoSST {
 	}
 
 	MemoryInit()
-	Configure(ctx,load_arrows)
+	Configure(sst,load_arrows)
 
 	NO_NODE_PTR.Class = 0
 	NO_NODE_PTR.CPtr =  -1
 
-	return ctx
+	return sst
 }
 
 // **************************************************************************
@@ -634,7 +634,7 @@ func MemoryInit() {
 
 // **************************************************************************
 
-func Configure(ctx PoSST,load_arrows bool) {
+func Configure(sst PoSST,load_arrows bool) {
 
 	// Tmp reset
 
@@ -644,64 +644,64 @@ func Configure(ctx PoSST,load_arrows bool) {
 		fmt.Println("* WIPING DB")
 		fmt.Println("***********************")
 		
-		ctx.DB.QueryRow("DROP INDEX sst_nan")
-		ctx.DB.QueryRow("DROP INDEX sst_type")
-		ctx.DB.QueryRow("DROP INDEX sst_gin")
-		ctx.DB.QueryRow("DROP INDEX sst_ungin")
+		sst.DB.QueryRow("DROP INDEX sst_nan")
+		sst.DB.QueryRow("DROP INDEX sst_type")
+		sst.DB.QueryRow("DROP INDEX sst_gin")
+		sst.DB.QueryRow("DROP INDEX sst_ungin")
 
-		ctx.DB.QueryRow("drop function fwdconeaslinks")
-		ctx.DB.QueryRow("drop function fwdconeasnodes")
-		ctx.DB.QueryRow("drop function fwdpathsaslinks")
-		ctx.DB.QueryRow("drop function getfwdlinks")
-		ctx.DB.QueryRow("drop function getfwdnodes")
-		ctx.DB.QueryRow("drop function getneighboursbytype")
-		ctx.DB.QueryRow("drop function getsingletonaslink")
-		ctx.DB.QueryRow("drop function AllNCPathsAsLinks")
-		ctx.DB.QueryRow("drop function AllSuperNCPathsAsLinks")
-		ctx.DB.QueryRow("drop function SumAllNCPaths")
-		ctx.DB.QueryRow("drop function GetNCFwdLinks")
-		ctx.DB.QueryRow("drop function GetNCCLinks")
+		sst.DB.QueryRow("drop function fwdconeaslinks")
+		sst.DB.QueryRow("drop function fwdconeasnodes")
+		sst.DB.QueryRow("drop function fwdpathsaslinks")
+		sst.DB.QueryRow("drop function getfwdlinks")
+		sst.DB.QueryRow("drop function getfwdnodes")
+		sst.DB.QueryRow("drop function getneighboursbytype")
+		sst.DB.QueryRow("drop function getsingletonaslink")
+		sst.DB.QueryRow("drop function AllNCPathsAsLinks")
+		sst.DB.QueryRow("drop function AllSuperNCPathsAsLinks")
+		sst.DB.QueryRow("drop function SumAllNCPaths")
+		sst.DB.QueryRow("drop function GetNCFwdLinks")
+		sst.DB.QueryRow("drop function GetNCCLinks")
 
-		ctx.DB.QueryRow("drop function getsingletonaslinkarray")
-		ctx.DB.QueryRow("drop function idempinsertnode")
-		ctx.DB.QueryRow("drop function sumfwdpaths")
-		ctx.DB.QueryRow("drop function match_context")
-		ctx.DB.QueryRow("drop function empty_path")
-		ctx.DB.QueryRow("drop function match_arrows")
-		ctx.DB.QueryRow("drop function ArrowInList")
-		ctx.DB.QueryRow("drop function GetNCCStoryStartNodes")
-		ctx.DB.QueryRow("drop function GetStoryStartNodes")
-		ctx.DB.QueryRow("drop function GetAppointments")
-		ctx.DB.QueryRow("drop function UnCmp")
-		ctx.DB.QueryRow("drop function DeleteChapter")
+		sst.DB.QueryRow("drop function getsingletonaslinkarray")
+		sst.DB.QueryRow("drop function idempinsertnode")
+		sst.DB.QueryRow("drop function sumfwdpaths")
+		sst.DB.QueryRow("drop function match_context")
+		sst.DB.QueryRow("drop function empty_path")
+		sst.DB.QueryRow("drop function match_arrows")
+		sst.DB.QueryRow("drop function ArrowInList")
+		sst.DB.QueryRow("drop function GetNCCStoryStartNodes")
+		sst.DB.QueryRow("drop function GetStoryStartNodes")
+		sst.DB.QueryRow("drop function GetAppointments")
+		sst.DB.QueryRow("drop function UnCmp")
+		sst.DB.QueryRow("drop function DeleteChapter")
 
-		ctx.DB.QueryRow("drop function lastsawsection(text)")
-		ctx.DB.QueryRow("drop function lastsawnptr(nodeptr)")
+		sst.DB.QueryRow("drop function lastsawsection(text)")
+		sst.DB.QueryRow("drop function lastsawnptr(nodeptr)")
 
-		ctx.DB.QueryRow("drop type NodePtr")
-		ctx.DB.QueryRow("drop type Link")
-		ctx.DB.QueryRow("drop type Appointment")
+		sst.DB.QueryRow("drop type NodePtr")
+		sst.DB.QueryRow("drop type Link")
+		sst.DB.QueryRow("drop type Appointment")
 
-		ctx.DB.QueryRow("drop table Node")
-		ctx.DB.QueryRow("drop table PageMap")
-		ctx.DB.QueryRow("drop table NodeArrowNode")
-		ctx.DB.QueryRow("drop table ArrowDirectory")
-		ctx.DB.QueryRow("drop table ArrowInverses")
-		ctx.DB.QueryRow("drop table ContextDirectory")
-		ctx.DB.QueryRow("drop table LastSeen")
+		sst.DB.QueryRow("drop table Node")
+		sst.DB.QueryRow("drop table PageMap")
+		sst.DB.QueryRow("drop table NodeArrowNode")
+		sst.DB.QueryRow("drop table ArrowDirectory")
+		sst.DB.QueryRow("drop table ArrowInverses")
+		sst.DB.QueryRow("drop table ContextDirectory")
+		sst.DB.QueryRow("drop table LastSeen")
 
 	}
 
 	// Create functions, some we use in autocreating index columns
 
-	ctx.DB.QueryRow("CREATE EXTENSION unaccent")
+	sst.DB.QueryRow("CREATE EXTENSION unaccent")
 
-	if !CreateType(ctx,NODEPTR_TYPE) {
+	if !CreateType(sst,NODEPTR_TYPE) {
 		fmt.Println("Unable to create type as, ",NODEPTR_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateType(ctx,LINK_TYPE) {
+	if !CreateType(sst,LINK_TYPE) {
 		fmt.Println("Unable to create type as, ",LINK_TYPE)
 		os.Exit(-1)
 	}
@@ -711,54 +711,54 @@ func Configure(ctx PoSST,load_arrows bool) {
 		os.Exit(-1)
 	}	
 
-	if !CreateType(ctx,APPOINTMENT_TYPE) {
+	if !CreateType(sst,APPOINTMENT_TYPE) {
 		fmt.Println("Unable to create type as, ",APPOINTMENT_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,CONTEXT_DIRECTORY_TABLE) {
+	if !CreateTable(sst,CONTEXT_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",CONTEXT_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
-	DefineStoredFunctions(ctx)
+	DefineStoredFunctions(sst)
 
-	if !CreateTable(ctx,PAGEMAP_TABLE) {
+	if !CreateTable(sst,PAGEMAP_TABLE) {
 		fmt.Println("Unable to create table as, ",PAGEMAP_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,NODE_TABLE) {
+	if !CreateTable(sst,NODE_TABLE) {
 		fmt.Println("Unable to create table as, ",NODE_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,ARROW_INVERSES_TABLE) {
+	if !CreateTable(sst,ARROW_INVERSES_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_INVERSES_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,ARROW_DIRECTORY_TABLE) {
+	if !CreateTable(sst,ARROW_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,LASTSEEN_TABLE) {
+	if !CreateTable(sst,LASTSEEN_TABLE) {
 		fmt.Println("Unable to create table as, ",LASTSEEN_TABLE)
 		os.Exit(-1)
 	}
 
-	DownloadArrowsFromDB(ctx)
-	DownloadContextsFromDB(ctx)
-	SynchronizeNPtrs(ctx)
+	DownloadArrowsFromDB(sst)
+	DownloadContextsFromDB(sst)
+	SynchronizeNPtrs(sst)
 
 	// Find ignorable arrows
 }
 
 // **************************************************************************
 
-func Close(ctx PoSST) {
-	ctx.DB.Close()
+func Close(sst PoSST) {
+	sst.DB.Close()
 }
 
 // **************************************************************************
@@ -803,13 +803,13 @@ func RegisterContext(parse_state map[string]bool,context []string) ContextPtr {
 
 // **************************************************************************
 
-func TryContext(ctx PoSST,context []string) ContextPtr {
+func TryContext(sst PoSST,context []string) ContextPtr {
 
 	ctxstr := CompileContextString(context)
-	str,ctxptr := GetDBContextByName(ctx,ctxstr)
+	str,ctxptr := GetDBContextByName(sst,ctxstr)
 
 	if ctxptr == -1 || str != ctxstr {
-		ctxptr = UploadContextToDB(ctx,ctxstr,-1)
+		ctxptr = UploadContextToDB(sst,ctxstr,-1)
 		RegisterContext(nil,context)
 	}
 
@@ -867,9 +867,9 @@ func NormalizeContextString(contextmap map[string]bool,ctx []string) string {
 
 // **************************************************************************
 
-func GetNodeContext(ctx PoSST,node Node) []string {
+func GetNodeContext(sst PoSST,node Node) []string {
 
-	str := GetNodeContextString(ctx,node)
+	str := GetNodeContextString(sst,node)
 
 	if str != "" {
 		return strings.Split(str,",")
@@ -880,12 +880,12 @@ func GetNodeContext(ctx PoSST,node Node) []string {
 
 // **************************************************************************
 
-func GetNodeContextString(ctx PoSST,node Node) string {
+func GetNodeContextString(sst PoSST,node Node) string {
 
 	// This reads the ghost link planted for the purpose of attaching
 	// a context to floating nodes
 
-	empty := GetDBArrowByName(ctx,"empty")
+	empty := GetDBArrowByName(sst,"empty")
 
 	for _,lnk := range node.I[ST_ZERO+LEADSTO] {
 
@@ -1168,7 +1168,8 @@ func AppendLinkToNode(frptr NodePtr,link Link,toptr NodePtr) {
 	link.Dst = toptr // fill in the last part of the reference
 
 	// Idempotently add any new context strings to the current list
-	// between from and to nodes
+	// between from and to nodes -- stindex tells us which link type, so implicit in the arrow type
+	// the empty arrow is used to record node context, which is type LEADSTO
 
 	switch frclass {
 
@@ -1356,6 +1357,17 @@ func InsertArrowDirectory(stname,alias,name,pm string) ArrowPtr {
 
 	var newarrow ArrowDirectory
 
+	// Check is already exists - harmless
+
+	prev_alias,a_exists := ARROW_SHORT_DIR[alias]
+	prev_name,n_exists := ARROW_LONG_DIR[name]
+
+	if a_exists && n_exists {
+		if prev_alias == prev_name {
+			return prev_alias
+		}
+	}
+
 	for a := range ARROW_DIRECTORY {
 		if ARROW_DIRECTORY[a].Long == name || ARROW_DIRECTORY[a].Short == alias {
 			return ArrowPtr(-1)
@@ -1393,7 +1405,7 @@ func InsertInverseArrowDirectory(fwd,bwd ArrowPtr) {
 // Upload managed N4L graph / Write to database
 //**************************************************************
 
-func GraphToDB(ctx PoSST,wait_counter bool) {
+func GraphToDB(sst PoSST,wait_counter bool) {
 
 	total := len(NODE_DIRECTORY.N1directory) + len(NODE_DIRECTORY.N2directory) + len(NODE_DIRECTORY.N3directory) + len(NODE_DIRECTORY.LT128) + len(NODE_DIRECTORY.LT1024) + len(NODE_DIRECTORY.GT1024) + len(PAGE_MAP)
 
@@ -1407,38 +1419,38 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 		case N1GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N1directory); n++ {
 				org := NODE_DIRECTORY.N1directory[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case N2GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N2directory); n++ {
 				org := NODE_DIRECTORY.N2directory[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case N3GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N3directory); n++ {
 				org := NODE_DIRECTORY.N3directory[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case LT128:
 			for n := offset; n < len(NODE_DIRECTORY.LT128); n++ {
 				org := NODE_DIRECTORY.LT128[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case LT1024:
 			for n := offset; n < len(NODE_DIRECTORY.LT1024); n++ {
 				org := NODE_DIRECTORY.LT1024[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 
 		case GT1024:
 			for n := offset; n < len(NODE_DIRECTORY.GT1024); n++ {
 				org := NODE_DIRECTORY.GT1024[n]
-				UploadNodeToDB(ctx,org)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		}
@@ -1448,38 +1460,38 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 
 	fmt.Println("\nStoring Arrows...")
 
-	ctx.DB.QueryRow("drop table ArrowDirectory")
-	ctx.DB.QueryRow("drop table ArrowInverses")
+	sst.DB.QueryRow("drop table ArrowDirectory")
+	sst.DB.QueryRow("drop table ArrowInverses")
 
-	if !CreateTable(ctx,ARROW_INVERSES_TABLE) {
+	if !CreateTable(sst,ARROW_INVERSES_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_INVERSES_TABLE)
 		os.Exit(-1)
 	}
-	if !CreateTable(ctx,ARROW_DIRECTORY_TABLE) {
+	if !CreateTable(sst,ARROW_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
 	for arrow := range ARROW_DIRECTORY {
 
-		UploadArrowToDB(ctx,ArrowPtr(arrow))
+		UploadArrowToDB(sst,ArrowPtr(arrow))
 	}
 
 	fmt.Println("Storing inverse Arrows...")
 
 	for arrow := range INVERSE_ARROWS {
 
-		UploadInverseArrowToDB(ctx,ArrowPtr(arrow))
+		UploadInverseArrowToDB(sst,ArrowPtr(arrow))
 	}
 
 	fmt.Println("Storing contexts...")
 
-	UploadContextsToDB(ctx)
+	UploadContextsToDB(sst)
 
 	fmt.Println("Storing page map...")
 
 	for line := 0; line < len(PAGE_MAP); line ++ {
-		UploadPageMapEvent(ctx,PAGE_MAP[line])
+		UploadPageMapEvent(sst,PAGE_MAP[line])
 		Waiting(wait_counter,total)
 	}
 
@@ -1487,9 +1499,9 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 
 	fmt.Println("Indexing ....")
 
-	ctx.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_type on Node (((NPtr).Chan),L,S)")
-	ctx.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_gin on Node USING GIN (Search)")
-	ctx.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_ungin on Node USING GIN (UnSearch)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_type on Node (((NPtr).Chan),L,S)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_gin on Node USING GIN (Search)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_ungin on Node USING GIN (UnSearch)")
 
 	fmt.Println("Finally done!")
 }
@@ -1498,37 +1510,37 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 // Store - High level API, for automatic NPtr numbering
 // **************************************************************************
 
-func Vertex(ctx PoSST,name,chap string) Node {
+func Vertex(sst PoSST,name,chap string) Node {
 
 	var n Node
 
 	n.S = name
 	n.Chap = chap
 
-	return IdempDBAddNode(ctx,n)
+	return IdempDBAddNode(sst,n)
 }
 
 // **************************************************************************
 
-func Edge(ctx PoSST,from Node,arrow string,to Node,context []string,weight float32) (ArrowPtr,int) {
+func Edge(sst PoSST,from Node,arrow string,to Node,context []string,weight float32) (ArrowPtr,int) {
 
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
+	arrowptr,sttype := GetDBArrowsWithArrowName(sst,arrow)
 
 	var link Link
 
 	link.Arr = arrowptr
 	link.Dst = to.NPtr
 	link.Wgt = weight
-	link.Ctx = TryContext(ctx,context)
+	link.Ctx = TryContext(sst,context)
 
-	IdempDBAddLink(ctx,from,link,to)
+	IdempDBAddLink(sst,from,link,to)
 
 	return arrowptr,sttype
 }
 
 // **************************************************************************
 
-func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []string,weight []float32) Node {
+func HubJoin(sst PoSST,name,chap string,nptrs []NodePtr,arrow string,context []string,weight []float32) Node {
 
 	// Create a container node joining several other nodes in a list, like a hyperlink
 
@@ -1554,7 +1566,7 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		name = "hub_"+arrow+"_"
 		for n := range nptrs {
 			name += fmt.Sprintf("(%d,%d)",nptrs[n].Class,nptrs[n].CPtr)
-			node := GetDBNodeByNodePtr(ctx,nptrs[n])
+			node := GetDBNodeByNodePtr(sst,nptrs[n])
 			chaps[node.Chap]++
 		}
 	}
@@ -1571,9 +1583,9 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		}
 	}
 
-	container := IdempDBAddNode(ctx,to)
+	container := IdempDBAddNode(sst,to)
 
-	arrowptr,_ := GetDBArrowsWithArrowName(ctx,arrow)
+	arrowptr,_ := GetDBArrowsWithArrowName(sst,arrow)
 
 	for nptr := range nptrs {
 
@@ -1581,19 +1593,19 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		link.Arr = arrowptr
 		link.Dst = container.NPtr
 		link.Wgt = weight[nptr]
-		link.Ctx = TryContext(ctx,context)
-		from := GetDBNodeByNodePtr(ctx,nptrs[nptr])
-		IdempDBAddLink(ctx,from,link,container)
+		link.Ctx = TryContext(sst,context)
+		from := GetDBNodeByNodePtr(sst,nptrs[nptr])
+		IdempDBAddLink(sst,from,link,container)
 	}
 
-	return GetDBNodeByNodePtr(ctx,container.NPtr)
+	return GetDBNodeByNodePtr(sst,container.NPtr)
 }
 
 // **************************************************************************
 // Lower level functions, for self-managed NPtr values
 // **************************************************************************
 
-func ForceDBNode(ctx PoSST, n Node) {
+func ForceDBNode(sst PoSST, n Node) {
 
 	// Add node version setting explicit CPtr value, note different function call
 	// We use this function when we ARE managing/counting CPtr values ourselves
@@ -1615,7 +1627,7 @@ func ForceDBNode(ctx PoSST, n Node) {
 
 	qstr = fmt.Sprintf("SELECT InsertNode(%d,%d,%d,'%s','%s',%s)",n.L,n.NPtr.Class,cptr,es,ec,seqstr)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1634,7 +1646,7 @@ func ForceDBNode(ctx PoSST, n Node) {
 
 // **************************************************************************
 
-func CreateDBNode(ctx PoSST, n Node) Node {
+func CreateDBNode(sst PoSST, n Node) Node {
 
 	// Add node version setting explicit CPtr value, note different function call
 	// We use this function when we ARE managing/counting CPtr values ourselves
@@ -1650,7 +1662,7 @@ func CreateDBNode(ctx PoSST, n Node) Node {
 
 	qstr = fmt.Sprintf("SELECT IdempInsertNode(%d,%d,%d,'%s','%s')",n.L,n.NPtr.Class,cptr,es,ec)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1682,7 +1694,7 @@ func CreateDBNode(ctx PoSST, n Node) Node {
 //  Low level append/insert for auto-managed NPtr values
 // **************************************************************************
 
-func IdempDBAddNode(ctx PoSST,n Node) Node {
+func IdempDBAddNode(sst PoSST,n Node) Node {
 
 	// We use this function when we aren't counting CPtr values
 	// This functon may be deprecated in future
@@ -1700,7 +1712,7 @@ func IdempDBAddNode(ctx PoSST,n Node) Node {
 
 	qstr = fmt.Sprintf("SELECT IdempAppendNode(%d,%d,'%s','%s')",n.L,n.NPtr.Class,es,ec)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to add node",err)
@@ -1732,11 +1744,11 @@ func IdempDBAddNode(ctx PoSST,n Node) Node {
 //  Uploading memory cache to database
 // **************************************************************************
 
-func UploadNodeToDB(ctx PoSST, org Node) {
+func UploadNodeToDB(sst PoSST, org Node) {
 
 	const nolink = 999
 
-	ForceDBNode(ctx,org)
+	ForceDBNode(sst,org)
 
 	for stindex := 0; stindex < len(org.I); stindex++ {
 
@@ -1745,14 +1757,14 @@ func UploadNodeToDB(ctx PoSST, org Node) {
 			dstlnk := org.I[stindex][lnk]
 			sttype := STIndexToSTType(stindex)
 
-			AppendDBLinkToNode(ctx,org.NPtr,dstlnk,sttype)
+			AppendDBLinkToNode(sst,org.NPtr,dstlnk,sttype)
 		}
 	}
 }
 
 // **************************************************************************
 
-func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
+func UploadArrowToDB(sst PoSST,arrow ArrowPtr) {
 
 	staidx := ARROW_DIRECTORY[arrow].STAindex
 	long := SQLEscape(ARROW_DIRECTORY[arrow].Long)
@@ -1760,7 +1772,7 @@ func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
 
 	qstr := fmt.Sprintf("INSERT INTO ArrowDirectory (STAindex,Long,Short,ArrPtr) SELECT %d,'%s','%s',%d WHERE NOT EXISTS (SELECT Long,Short,ArrPtr FROM ArrowDirectory WHERE lower(Long) = lower('%s') OR lower(Short) = lower('%s') OR ArrPtr = %d)",staidx,long,short,arrow,long,short,arrow)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1777,14 +1789,14 @@ func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
 
 // **************************************************************************
 
-func UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr) {
+func UploadInverseArrowToDB(sst PoSST,arrow ArrowPtr) {
 
 	plus := arrow
 	minus := INVERSE_ARROWS[arrow]
 
 	qstr := fmt.Sprintf("INSERT INTO ArrowInverses (Plus,Minus) SELECT %d,%d WHERE NOT EXISTS (SELECT Plus,Minus FROM ArrowInverses WHERE Plus = %d OR minus = %d)",plus,minus,plus,minus)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1801,16 +1813,16 @@ func UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr) {
 
 // **************************************************************************
 
-func UploadContextsToDB(ctx PoSST) {
+func UploadContextsToDB(sst PoSST) {
 
 	for ctxdir := range CONTEXT_DIRECTORY {
-		UploadContextToDB(ctx,CONTEXT_DIRECTORY[ctxdir].Context,CONTEXT_DIRECTORY[ctxdir].Ptr)
+		UploadContextToDB(sst,CONTEXT_DIRECTORY[ctxdir].Context,CONTEXT_DIRECTORY[ctxdir].Ptr)
 	}
 }
 
 // **************************************************************************
 
-func UploadContextToDB(ctx PoSST,contextstring string,ptr ContextPtr) ContextPtr {
+func UploadContextToDB(sst PoSST,contextstring string,ptr ContextPtr) ContextPtr {
 
 	a := SQLEscape(contextstring)
 	b := ptr
@@ -1819,7 +1831,7 @@ func UploadContextToDB(ctx PoSST,contextstring string,ptr ContextPtr) ContextPtr
 
 	qstr := fmt.Sprintf("SELECT IdempInsertContext('%s',%d)",a,b)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("FAILED \n",qstr,err)
@@ -1839,11 +1851,11 @@ func UploadContextToDB(ctx PoSST,contextstring string,ptr ContextPtr) ContextPtr
 
 //**************************************************************
 
-func UploadPageMapEvent(ctx PoSST, line PageMap) {
+func UploadPageMapEvent(sst PoSST, line PageMap) {
 
 	qstr := fmt.Sprintf("INSERT INTO PageMap (Chap,Alias,Ctx,Line) VALUES ('%s','%s',%d,%d)",line.Chapter,line.Alias,line.Context,line.Line)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert pagemap event",err)
@@ -1866,7 +1878,7 @@ func UploadPageMapEvent(ctx PoSST, line PageMap) {
 		
 		qstr := fmt.Sprintf("UPDATE PageMap SET Path=array_append(Path,%s) WHERE Chap = '%s' AND Line = '%d'",literal,line.Chapter,line.Line)
 		
-		row,err := ctx.DB.Query(qstr)
+		row,err := sst.DB.Query(qstr)
 		
 		if err != nil {
 			fmt.Println("Failed to append",err,qstr)
@@ -1878,7 +1890,7 @@ func UploadPageMapEvent(ctx PoSST, line PageMap) {
 
 //**************************************************************
 
-func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
+func IdempDBAddLink(sst PoSST,from Node,link Link,to Node) {
 
 	// API Entry point for registering links
 
@@ -1904,7 +1916,7 @@ func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
 
 	sttype := STIndexToSTType(ARROW_DIRECTORY[link.Arr].STAindex)
 
-	AppendDBLinkToNode(ctx,frptr,link,sttype)
+	AppendDBLinkToNode(sst,frptr,link,sttype)
 
 	// Double up the reverse definition for easy indexing of both in/out arrows
 	// But be careful not the make the graph undirected by mistake
@@ -1913,12 +1925,12 @@ func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
 	invlink.Arr = INVERSE_ARROWS[link.Arr]
 	invlink.Wgt = link.Wgt
 	invlink.Dst = frptr
-	AppendDBLinkToNode(ctx,toptr,invlink,-sttype)
+	AppendDBLinkToNode(sst,toptr,invlink,-sttype)
 }
 
 // **************************************************************************
 
-func AppendDBLinkToNode(ctx PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
+func AppendDBLinkToNode(sst PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
 
 	// Want to make this idempotent, because SQL is not (and not clause)
 
@@ -1948,7 +1960,7 @@ func AppendDBLinkToNode(ctx PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
 		literal,
 		link_table)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Failed to append",err,qstr)
@@ -1964,9 +1976,9 @@ func AppendDBLinkToNode(ctx PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
 // Postgres interface
 // **************************************************************************
 
-func CreateType(ctx PoSST, defn string) bool {
+func CreateType(sst PoSST, defn string) bool {
 
-	row,err := ctx.DB.Query(defn)
+	row,err := sst.DB.Query(defn)
 
 	if err != nil {
 		s := fmt.Sprintln("Failed to create datatype PGLink ",err)
@@ -1984,9 +1996,9 @@ func CreateType(ctx PoSST, defn string) bool {
 
 // **************************************************************************
 
-func CreateTable(ctx PoSST,defn string) bool {
+func CreateTable(sst PoSST,defn string) bool {
 
-	row,err := ctx.DB.Query(defn)
+	row,err := sst.DB.Query(defn)
 	
 	if err != nil {
 		s := fmt.Sprintln("Failed to create a table %.10 ...",defn,err)
@@ -2004,7 +2016,7 @@ func CreateTable(ctx PoSST,defn string) bool {
 
 // **************************************************************************
 
-func DefineStoredFunctions(ctx PoSST) {
+func DefineStoredFunctions(sst PoSST) {
 
 	// NB! these functions are in "plpgsql" language, NOT SQL. They look similar but they are DIFFERENT!
 	
@@ -2026,7 +2038,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;",cols);
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2045,7 +2057,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;",cols);
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2074,7 +2086,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;";
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2105,7 +2117,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;";
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2207,7 +2219,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n"+
 		"$fn$ LANGUAGE plpgsql;"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2229,7 +2241,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n"+
 		"$fn$ LANGUAGE plpgsql;"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2249,7 +2261,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n"+
 		"$fn$ LANGUAGE plpgsql;"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2277,7 +2289,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2317,7 +2329,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n")
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2354,7 +2366,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2415,7 +2427,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2475,7 +2487,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2505,7 +2517,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2572,7 +2584,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2604,7 +2616,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	
         // select AllPathsAsLinks('(4,1)',3)
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2696,7 +2708,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2716,7 +2728,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2747,8 +2759,8 @@ func DefineStoredFunctions(ctx PoSST) {
 		"BEGIN \n" +
 
 		// If the db has no context but the search does, then no need to waste any time
-		"IF thisctxptr = 0 AND array_length(user_set,1) IS NOT NULL THEN\n"+
-		"   RETURN false;\n"+
+		"IF thisctxptr = 0 THEN\n"+
+		"   RETURN true;\n" +
 		"END IF;\n"+
 
 		// Convert context ptr into a list from the new factored cache
@@ -2839,7 +2851,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2862,7 +2874,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2889,7 +2901,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2916,7 +2928,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2940,7 +2952,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("FAILED UnCmp definition\n",qstr,err)
@@ -2974,7 +2986,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	
         // select AllNCPathsAsLinks('(1,46)','chinese','{"food","example"}','fwd',4);
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3078,7 +3090,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3117,7 +3129,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3159,7 +3171,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n")
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3217,7 +3229,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3319,7 +3331,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	qstr += "END ;\n"
 	qstr += "$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3416,7 +3428,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3453,7 +3465,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3489,7 +3501,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3509,7 +3521,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql IMMUTABLE;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3523,14 +3535,14 @@ func DefineStoredFunctions(ctx PoSST) {
 // Query / Retrieve structural parts
 // **************************************************************************
 
-func GetDBNodePtrMatchingName(ctx PoSST,name,chap string) []NodePtr {
+func GetDBNodePtrMatchingName(sst PoSST,name,chap string) []NodePtr {
 
-	return GetDBNodePtrMatchingNCCS(ctx,name,chap,nil,nil,false,CAUSAL_CONE_MAXLIMIT)
+	return GetDBNodePtrMatchingNCCS(sst,name,chap,nil,nil,false,CAUSAL_CONE_MAXLIMIT)
 }
 
 // **************************************************************************
 
-func GetDBNodePtrMatchingNCCS(ctx PoSST,nm,chap string,cn []string,arrow []ArrowPtr,seq bool,limit int) []NodePtr {
+func GetDBNodePtrMatchingNCCS(sst PoSST,nm,chap string,cn []string,arrow []ArrowPtr,seq bool,limit int) []NodePtr {
 
 	// Order by L to favour exact matches
 
@@ -3539,7 +3551,7 @@ func GetDBNodePtrMatchingNCCS(ctx PoSST,nm,chap string,cn []string,arrow []Arrow
 
 	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY L,NPtr LIMIT %d",NodeWhereString(nm,chap,cn,arrow,seq),limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY GetNodePtrMatchingNCC Failed",err,qstr)
@@ -3632,7 +3644,7 @@ func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr,seq bool
 
 // **************************************************************************
 
-func GetDBChaptersMatchingName(ctx PoSST,src string) []string {
+func GetDBChaptersMatchingName(sst PoSST,src string) []string {
 
 	var qstr string
 
@@ -3646,7 +3658,7 @@ func GetDBChaptersMatchingName(ctx PoSST,src string) []string {
 		qstr = fmt.Sprintf("SELECT DISTINCT Chap FROM Node WHERE lower(Chap) LIKE lower('%s')",search)
 	}
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBChaptersMatchingName",err)
@@ -3680,7 +3692,7 @@ func GetDBChaptersMatchingName(ctx PoSST,src string) []string {
 
 // **************************************************************************
 
-func GetDBContextByName(ctx PoSST,src string) (string,ContextPtr) {
+func GetDBContextByName(sst PoSST,src string) (string,ContextPtr) {
 
 	var qstr string
 
@@ -3694,7 +3706,7 @@ func GetDBContextByName(ctx PoSST,src string) (string,ContextPtr) {
 		qstr = fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE Context='%s'",search)
 	}
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY GetDBContextByName",err)
@@ -3716,11 +3728,11 @@ func GetDBContextByName(ctx PoSST,src string) (string,ContextPtr) {
 
 // **************************************************************************
 
-func GetDBContextByPtr(ctx PoSST,ptr ContextPtr) (string,ContextPtr) {
+func GetDBContextByPtr(sst PoSST,ptr ContextPtr) (string,ContextPtr) {
 
 	qstr := fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE CtxPtr=%d",ptr)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBContextssByPtr",err)
@@ -3757,7 +3769,7 @@ func GetSTtypesFromArrows(arrows []ArrowPtr) []int {
 
 // **************************************************************************
 
-func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
+func GetDBNodeByNodePtr(sst PoSST,db_nptr NodePtr) Node {
 
 	im_nptr,cached := NODE_CACHE[db_nptr]
 
@@ -3765,11 +3777,11 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 		return GetMemoryNodeFromPtr(im_nptr)
 	}
 
-	// This ony works if we insert non-null arrays in initialization
+	// This ony works if we insert non-null arrays like '[]' during initialization
 	cols := I_MEXPR+","+I_MCONT+","+I_MLEAD+","+I_NEAR +","+I_PLEAD+","+I_PCONT+","+I_PEXPR
 	qstr := fmt.Sprintf("select L,S,Chap,%s from Node where NPtr='(%d,%d)'::NodePtr AND NOT L=0",cols,db_nptr.Class,db_nptr.CPtr)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	var n Node
 	var count int = 0
@@ -3781,7 +3793,7 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 
 	var whole [ST_TOP]string
 
-	// NB, there seems to be a bug in the SQL package, which cannot always populate the links, so try not to
+	// NB, there seems to be a "bug" in the SQL package, which cannot always populate the links, so try not to
 	//     rely on this and work around when needed using GetEntireCone(any,2..) separately
 
 	for row.Next() {
@@ -3798,6 +3810,12 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 		os.Exit(-1)
 	}
 
+	// Expand any dynamic inbuilt functions
+
+	if strings.HasPrefix(n.S,"Dynamic: ") {
+		n.S = ExpandDynamicFunctions(n.S)
+	}
+
 	row.Close()
 
 	if !cached {
@@ -3810,7 +3828,7 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 
 // **************************************************************************
 
-func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr) {
+func GetDBSingletonBySTType(sst PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr) {
 
 	// Used in graph report, analysis
 
@@ -3843,7 +3861,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 	qstr = fmt.Sprintf("SELECT NPtr FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",chapter,qwhere)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBSingletonBySTType Failed",err,"IN",qstr)
@@ -3888,7 +3906,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 	qstr = fmt.Sprintf("SELECT NPtr FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",chapter,qwhere)
 
-	row, err = ctx.DB.Query(qstr)
+	row, err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBSingletonBySTType 2 Failed",err,"IN",qstr)
@@ -3920,7 +3938,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 // **************************************************************************
 
-func SelectStoriesByArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
+func SelectStoriesByArrow(sst PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
 
 	var matches []NodePtr
 
@@ -3938,11 +3956,10 @@ func SelectStoriesByArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, st
 		// All these nodes should have Seq = true already from "SolveNodePtrs()"
 		// So all the searching is finished, we just need to match the requested arrow
 
-		node := GetDBNodeByNodePtr(ctx,n)  // we are now caching this for later
+		node := GetDBNodeByNodePtr(sst,n)  // we are now caching this for later
 		matches = append(matches,node.NPtr)
 	}
 
-	fmt.Println("GOT ",matches)
 	return matches
 }
 
@@ -3950,10 +3967,10 @@ func SelectStoriesByArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, st
 // Retrieve Arrow type data
 // **************************************************************************
 
-func GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int) {
+func GetDBArrowsWithArrowName(sst PoSST,s string) (ArrowPtr,int) {
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
 	s = strings.Trim(s,"!")
@@ -3976,12 +3993,12 @@ func GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int) {
 
 // **************************************************************************
 
-func GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr {
+func GetDBArrowsMatchingArrowName(sst PoSST,s string) []ArrowPtr {
 
 	var list []ArrowPtr
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
 	trimmed := strings.Trim(s,"!")
@@ -4009,10 +4026,10 @@ func GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr {
 
 // **************************************************************************
 
-func GetDBArrowByName(ctx PoSST,name string) ArrowPtr {
+func GetDBArrowByName(sst PoSST,name string) ArrowPtr {
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
 	name = strings.Trim(name,"!")
@@ -4046,10 +4063,10 @@ func GetDBArrowByName(ctx PoSST,name string) ArrowPtr {
 
 // **************************************************************************
 
-func GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory {
+func GetDBArrowByPtr(sst PoSST,arrowptr ArrowPtr) ArrowDirectory {
 
 	if int(arrowptr) > len(ARROW_DIRECTORY) {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
 	if int(arrowptr) < len(ARROW_DIRECTORY) {
@@ -4065,11 +4082,11 @@ func GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory {
 
 // **************************************************************************
 
-func GetDBArrowBySTType(ctx PoSST,sttype int) []ArrowDirectory {
+func GetDBArrowBySTType(sst PoSST,sttype int) []ArrowDirectory {
 
 	var retval []ArrowDirectory
 
-	DownloadArrowsFromDB(ctx)
+	DownloadArrowsFromDB(sst)
 
 	for a := range ARROW_DIRECTORY {
 		sta := ARROW_DIRECTORY[a].STAindex
@@ -4085,7 +4102,7 @@ func GetDBArrowBySTType(ctx PoSST,sttype int) []ArrowDirectory {
 // Parsing and handling of search strings
 //******************************************************************
 
-func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
+func ArrowPtrFromArrowsNames(sst PoSST,arrows []string) ([]ArrowPtr,[]int) {
 
 	// Parse input and discern arrow types, best guess
 
@@ -4100,11 +4117,11 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 		notnumber := err != nil
 
 		if notnumber {
-			arrs := GetDBArrowsMatchingArrowName(ctx,arrows[a])
+			arrs := GetDBArrowsMatchingArrowName(sst,arrows[a])
 			for  ar := range arrs {
 				arrowptr := arrs[ar]
 				if arrowptr > 0 {
-					arrdir := GetDBArrowByPtr(ctx,arrowptr)
+					arrdir := GetDBArrowByPtr(sst,arrowptr)
 					arr = append(arr,arrdir.Ptr)
 					stt = append(stt,STIndexToSTType(arrdir.STAindex))
 				}
@@ -4116,7 +4133,7 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 				stt = append(stt,number)
 			} else {
 				// whatever remains can only be an arrowpointer
-				arrdir := GetDBArrowByPtr(ctx,ArrowPtr(number))
+				arrdir := GetDBArrowByPtr(sst,ArrowPtr(number))
 				arr = append(arr,arrdir.Ptr)
 				stt = append(stt,STIndexToSTType(arrdir.STAindex))
 			}
@@ -4128,7 +4145,7 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 
 //******************************************************************
 
-func SolveNodePtrs(ctx PoSST,nodenames []string,search SearchParameters,arr []ArrowPtr,limit int) []NodePtr {
+func SolveNodePtrs(sst PoSST,nodenames []string,search SearchParameters,arr []ArrowPtr,limit int) []NodePtr {
 
 	chap := search.Chapter
 	cntx := search.Context
@@ -4151,7 +4168,7 @@ func SolveNodePtrs(ctx PoSST,nodenames []string,search SearchParameters,arr []Ar
 	for r := 0; r < len(rest); r++ {
 
 		// Takes care of general context matching
-		nptrs := GetDBNodePtrMatchingNCCS(ctx,rest[r],chap,cntx,arr,seq,limit)
+		nptrs := GetDBNodePtrMatchingNCCS(sst,rest[r],chap,cntx,arr,seq,limit)
 
 		for n := 0; n < len(nptrs); n++ {
 			idempotence[nptrs[n]] = true
@@ -4238,7 +4255,7 @@ func ParseLiteralNodePtrs(names []string) ([]NodePtr,[]string) {
 // Page format, preserving N4L intent
 // **************************************************************************
 
-func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
+func GetDBPageMap(sst PoSST,chap string,cn []string,page int) []PageMap {
 
 	var qstr string
 
@@ -4254,7 +4271,7 @@ func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
 		"WHERE match_context(Ctx,%s)=true AND lower(Chap) LIKE lower('%s') ORDER BY Chap,Line OFFSET %d LIMIT %d",
 		context,chapter,offset,hits_per_page)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("GetDBPageMap Failed:",err,qstr)
@@ -4291,11 +4308,11 @@ func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
 // Bulk DB Retrieval
 // **************************************************************************
 
-func GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int,limit int) []NodePtr {
+func GetFwdConeAsNodes(sst PoSST, start NodePtr, sttype,depth int,limit int) []NodePtr {
 
 	qstr := fmt.Sprintf("select unnest(fwdconeasnodes) from FwdConeAsNodes('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdConeAsNodes Failed",err)
@@ -4317,13 +4334,13 @@ func GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int,limit int) []N
 
 // **************************************************************************
 
-func GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link {
+func GetFwdConeAsLinks(sst PoSST, start NodePtr, sttype,depth int) []Link {
 
 	// This function may be misleading as it doesn't respect paths, may be deprecated in future
 
 	qstr := fmt.Sprintf("select unnest(fwdconeaslinks) from FwdConeAsLinks('(%d,%d)',%d,%d);",start.Class,start.CPtr,sttype,depth)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdConeAsLinks Failed",err)
@@ -4345,11 +4362,11 @@ func GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link {
 
 // **************************************************************************
 
-func GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int, maxlimit int) ([][]Link,int) {
+func GetFwdPathsAsLinks(sst PoSST, start NodePtr, sttype,depth int, maxlimit int) ([][]Link,int) {
 
 	qstr := fmt.Sprintf("SELECT FwdPathsAsLinks from FwdPathsAsLinks('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,maxlimit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdPathsAsLinks Failed",err)
@@ -4369,7 +4386,7 @@ func GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int, maxlimit int
 
 // **************************************************************************
 
-func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int,limit int) ([][]Link,int) {
+func GetEntireConePathsAsLinks(sst PoSST,orientation string,start NodePtr,depth int,limit int) ([][]Link,int) {
 
 	// orientation should be "fwd" or "bwd" else "both"
 
@@ -4378,7 +4395,7 @@ func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth 
 	qstr := fmt.Sprintf("select AllPathsAsLinks from AllPathsAsLinks('(%d,%d)','%s',%d, %d);",
 		start.Class,start.CPtr,orientation,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY to AllPathsAsLinks Failed",err,qstr)
@@ -4403,7 +4420,7 @@ func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth 
 
 // **************************************************************************
 
-func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
+func GetEntireNCConePathsAsLinks(sst PoSST,orientation string,start NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
 
 	// orientation should be "fwd" or "bwd" else "both"
 
@@ -4418,7 +4435,7 @@ func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,dept
 	qstr := fmt.Sprintf("select AllNCPathsAsLinks from AllNCPathsAsLinks('(%d,%d)','%s',%s,%s,'%s',%d,%d);",
 		start.Class,start.CPtr,chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY to AllNCPathsAsLinks Failed",err,qstr)
@@ -4446,7 +4463,7 @@ func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,dept
 
 // **************************************************************************
 
-func GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
+func GetEntireNCSuperConePathsAsLinks(sst PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
 
 	// orientation should be "fwd" or "bwd" else "both"
 
@@ -4460,7 +4477,7 @@ func GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodeP
 
 	qstr := fmt.Sprintf("select AllSuperNCPathsAsLinks(%s,'%s',%s,%s,'%s',%d,%d);",FormatSQLNodePtrArray(start),chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY to AllSuperNCPathsAsLinks Failed",err,qstr)
@@ -4501,13 +4518,13 @@ func CacheNode(n Node) {
 
 // **************************************************************************
 
-func DownloadArrowsFromDB(ctx PoSST) {
+func DownloadArrowsFromDB(sst PoSST) {
 
 	// These must be ordered to match in-memory array
 
 	qstr := fmt.Sprintf("SELECT STAindex,Long,Short,ArrPtr FROM ArrowDirectory ORDER BY ArrPtr")
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY Download Arrows Failed",err)
@@ -4547,7 +4564,7 @@ func DownloadArrowsFromDB(ctx PoSST) {
 
 	qstr = fmt.Sprintf("SELECT Plus,Minus FROM ArrowInverses ORDER BY Plus")
 
-	row, err = ctx.DB.Query(qstr)
+	row, err = sst.DB.Query(qstr)
 	
 	if err != nil {    
 		fmt.Println("QUERY Download Inverses Failed",err)
@@ -4569,11 +4586,11 @@ func DownloadArrowsFromDB(ctx PoSST) {
 
 // **************************************************************************
 
-func DownloadContextsFromDB(ctx PoSST) {
+func DownloadContextsFromDB(sst PoSST) {
 
 	qstr := fmt.Sprintf("SELECT Context,CtxPtr FROM ContextDirectory ORDER BY CtxPtr")
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY Download Arrows Failed",err)
@@ -4608,7 +4625,7 @@ func DownloadContextsFromDB(ctx PoSST) {
 
 // **************************************************************************
 
-func SynchronizeNPtrs(ctx PoSST) {
+func SynchronizeNPtrs(sst PoSST) {
 
 	// If we're merging (not recommended) N4L into an existing db, we need to synch
 
@@ -4616,7 +4633,7 @@ func SynchronizeNPtrs(ctx PoSST) {
 		
 		qstr := fmt.Sprintf("SELECT max((Nptr).CPtr) FROM Node WHERE (Nptr).Chan=%d",channel)
 
-		row, err := ctx.DB.Query(qstr)
+		row, err := sst.DB.Query(qstr)
 		
 		if err != nil {
 			fmt.Println("QUERY Synchronizing nptrs",err)
@@ -5044,7 +5061,7 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 // Path integral matrix and coarse graining
 // **************************************************************************
 
-func GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link {
+func GetPathsAndSymmetries(sst PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link {
 
 	var left_paths, right_paths [][]Link
 	var ldepth,rdepth int = 1,1
@@ -5057,9 +5074,9 @@ func GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,
 
 	for turn := 0; ldepth < maxdepth && rdepth < maxdepth; turn++ {
 
-		left_paths,Lnum = GetEntireNCSuperConePathsAsLinks(ctx,"fwd",start_set,ldepth,chapter,context,maxdepth)
-		right_paths,Rnum = GetEntireNCSuperConePathsAsLinks(ctx,"bwd",end_set,rdepth,chapter,context,maxdepth)
-		solutions,_ = WaveFrontsOverlap(ctx,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
+		left_paths,Lnum = GetEntireNCSuperConePathsAsLinks(sst,"fwd",start_set,ldepth,chapter,context,maxdepth)
+		right_paths,Rnum = GetEntireNCSuperConePathsAsLinks(sst,"bwd",end_set,rdepth,chapter,context,maxdepth)
+		solutions,_ = WaveFrontsOverlap(sst,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
 
 		if len(solutions) > 0 {
 			break
@@ -5079,7 +5096,7 @@ func GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,
 
 // **************************************************************************
 
-func GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]NodePtr {
+func GetPathTransverseSuperNodes(sst PoSST,solutions [][]Link,maxdepth int) [][]NodePtr {
 
 	var supernodes [][]NodePtr
 
@@ -5116,7 +5133,7 @@ func GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]
 
 // **********************************************************
 
-func WaveFrontsOverlap(ctx PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldepth,rdepth int) ([][]Link,[][]Link) {
+func WaveFrontsOverlap(sst PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldepth,rdepth int) ([][]Link,[][]Link) {
 
 	// The wave front consists of Lnum and Rnum points left_paths[len()-1].
 	// Any of the
@@ -5129,7 +5146,7 @@ func WaveFrontsOverlap(ctx PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldept
 	leftfront := WaveFront(left_paths,Lnum)
 	rightfront := WaveFront(right_paths,Rnum)
 
-	incidence := NodesOverlap(ctx,leftfront,rightfront)
+	incidence := NodesOverlap(sst,leftfront,rightfront)
 
 	for lp := range incidence {
 
@@ -5171,7 +5188,7 @@ func WaveFront(path [][]Link,num int) []NodePtr {
 
 // **********************************************************
 
-func NodesOverlap(ctx PoSST,left,right []NodePtr) map[int][]int {
+func NodesOverlap(sst PoSST,left,right []NodePtr) map[int][]int {
 
 	var LRsplice = make(map[int][]int)
 
@@ -5294,7 +5311,7 @@ func InNodeSet(list []NodePtr,node NodePtr) bool {
 //
 // **************************************************************************
 
-func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []string,transpose bool) ([][]float32,[]NodePtr) {
+func GetDBAdjacentNodePtrBySTType(sst PoSST,sttypes []int,chap string,cn []string,transpose bool) ([][]float32,[]NodePtr) {
 
 	// Return a weighted adjacency matrix by nptr, and an index:nptr lookup table
 	// Returns a connected adjacency matrix for the subgraph and a lookup table
@@ -5326,7 +5343,7 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 
 	qstr = fmt.Sprintf("SELECT NPtr%s FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",qsearch,chapter,qwhere)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY GetDBAdjacentNodePtrBySTType Failed",err)
@@ -5761,7 +5778,7 @@ func AdjointLinkPath(LL []Link) []Link {
 
 // **************************************************************************
 
-func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
+func NextLinkArrow(sst PoSST,path []Link,arrows []ArrowPtr) string {
 
 	var rstring string
 
@@ -5773,9 +5790,9 @@ func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
 				break
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,path[l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,path[l].Dst)
 			
-			arr := GetDBArrowByPtr(ctx,path[l].Arr)
+			arr := GetDBArrowByPtr(sst,path[l].Arr)
 			
 			if l < len(path) {
 				rstring += fmt.Sprint("  -(",arr.Long,")->  ")
@@ -5789,32 +5806,18 @@ func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
 }
 
 // **************************************************************************
-
-func IdempAddNote(list []Orbit, item Orbit) []Orbit {
-
-	for o := range list {
-		if list[o].Dst == item.Dst && list[o].Arrow == item.Arrow &&
-			list[o].Text == item.Text {
-			return list
-		}
-	}
-
-	return append(list,item)
-}
-
-// **************************************************************************
 //
 // Part 3: Model data retrieval, and data marshalling, with JSON etc
 //
 // **************************************************************************
 
-func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []Story {
+func GetSequenceContainers(sst PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []Story {
 
 	// Story search
 
 	var stories []Story
 
-	openings := SelectStoriesByArrow(ctx,nodeptrs,arrowptrs,sttypes,limit)
+	openings := SelectStoriesByArrow(sst,nodeptrs,arrowptrs,sttypes,limit)
 
 	arrname := ""
 	count := 0
@@ -5823,11 +5826,11 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 		var story Story
 
-		node := GetDBNodeByNodePtr(ctx,openings[nth])
+		node := GetDBNodeByNodePtr(sst,openings[nth])
 
 		story.Chapter = node.Chap
 
-		axis := GetLongestAxialPath(ctx,openings[nth],arrowptrs[0],limit)
+		axis := GetLongestAxialPath(sst,openings[nth],arrowptrs[0],limit)
 
 		directory := AssignStoryCoordinates(axis,nth,len(openings),limit)
 
@@ -5837,7 +5840,7 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 			var ne NodeEvent
 
-			nd := GetDBNodeByNodePtr(ctx,axis[lnk].Dst)
+			nd := GetDBNodeByNodePtr(sst,axis[lnk].Dst)
 
 			ne.Text = nd.S
 			ne.L = nd.L
@@ -5845,7 +5848,7 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 			ne.Context = GetContext(axis[lnk].Ctx)
 			ne.NPtr = axis[lnk].Dst
 			ne.XYZ = directory[ne.NPtr]
-			ne.Orbits = GetNodeOrbit(ctx,axis[lnk].Dst,arrname,limit)
+			ne.Orbits = GetNodeOrbit(sst,axis[lnk].Dst,arrname,limit)
 			ne.Orbits = SetOrbitCoords(ne.XYZ,ne.Orbits)
 
 			if lnk > limit {
@@ -5873,7 +5876,7 @@ func GetSequenceContainers(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 // **************************************************************************
 
-func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TOP][]Orbit {
+func GetNodeOrbit(sst PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TOP][]Orbit {
 
 	// Find the orbiting linked nodes of NPtr, start with properties of node
 
@@ -5881,15 +5884,15 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 
 	// radius = 0 is the starting node
 
-	sweep,_ := GetEntireConePathsAsLinks(ctx,"any",nptr,probe_radius,limit)
+	sweep,_ := GetEntireConePathsAsLinks(sst,"any",nptr,probe_radius,limit)
 
-	var notes [ST_TOP][]Orbit
+	var satellites [ST_TOP][]Orbit
 
 	// Organize by the leading nearest-neighbour by vector/link type
 
 	for stindex := 0; stindex < ST_TOP; stindex++ {
 
-		// Sweep different radial paths
+		// Sweep different radial paths [angle][depth]
 
 		for angle := 0; angle < len(sweep); angle++ {
 
@@ -5900,10 +5903,10 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 				const nearest_satellite = 1
 				start := sweep[angle][nearest_satellite]
 
-				arrow := GetDBArrowByPtr(ctx,start.Arr)
+				arrow := GetDBArrowByPtr(sst,start.Arr)
 
 				if arrow.STAindex == stindex {
-					txt := GetDBNodeByNodePtr(ctx,start.Dst)
+					txt := GetDBNodeByNodePtr(sst,start.Dst)
 
 					var nt Orbit
 
@@ -5916,7 +5919,7 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 						continue
 					}
 
-					notes[stindex] = IdempAddNote(notes[stindex],nt)
+					satellites[stindex] = IdempAddSatellite(satellites[stindex],nt)
 
 					// are there more satellites at this angle?
 
@@ -5924,8 +5927,8 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 
 						arprev := STIndexToSTType(arrow.STAindex)
 						next := sweep[angle][depth]
-						arrow = GetDBArrowByPtr(ctx,next.Arr)
-						subtxt := GetDBNodeByNodePtr(ctx,next.Dst)
+						arrow = GetDBArrowByPtr(sst,next.Arr)
+						subtxt := GetDBNodeByNodePtr(sst,next.Dst)
 
 						if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
 							break
@@ -5941,7 +5944,7 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 						arthis := STIndexToSTType(arrow.STAindex)
 						// No backtracking
 						if arthis != -arprev {	
-							notes[stindex] = IdempAddNote(notes[stindex],nt)
+							satellites[stindex] = IdempAddSatellite(satellites[stindex],nt)
 							arprev = arthis
 						}
 					}
@@ -5950,12 +5953,27 @@ func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TO
 		}
 	}
 
-	return notes
+	return satellites
 }
 
 // **************************************************************************
 
-func GetLongestAxialPath(ctx PoSST,nptr NodePtr,arrowptr ArrowPtr,limit int) []Link {
+func IdempAddSatellite(list []Orbit, item Orbit) []Orbit {
+
+	// crude check but effective, since the list is fairly short unless the graph is sick
+
+	for o := range list {
+		if list[o].Dst == item.Dst && list[o].Arrow == item.Arrow && list[o].Text == item.Text {
+			return list
+		}
+	}
+
+	return append(list,item)
+}
+
+// **************************************************************************
+
+func GetLongestAxialPath(sst PoSST,nptr NodePtr,arrowptr ArrowPtr,limit int) []Link {
 
 	// Used in story search along extended STtype paths
 
@@ -5963,7 +5981,7 @@ func GetLongestAxialPath(ctx PoSST,nptr NodePtr,arrowptr ArrowPtr,limit int) []L
 
 	sttype := STIndexToSTType(ARROW_DIRECTORY[arrowptr].STAindex)
 
-	paths,dim := GetFwdPathsAsLinks(ctx,nptr,sttype,limit,limit)
+	paths,dim := GetFwdPathsAsLinks(sst,nptr,sttype,limit,limit)
 
 	for pth := 0; pth < dim; pth++ {
 
@@ -6052,27 +6070,27 @@ func ContextIntentAnalysis(spectrum map[string]int,clusters []string) ([]string,
 // Access stats, LTM progress tracking
 // *********************************************************************
 
-func UpdateLastSawSection(ctx PoSST,name string) {
+func UpdateLastSawSection(sst PoSST,name string) {
 
 	s := fmt.Sprintf("select LastSawSection('%s')",name)
-	ctx.DB.QueryRow(s)
+	sst.DB.QueryRow(s)
 }
 
 // *********************************************************************
 
-func UpdateLastSawNPtr(ctx PoSST,class,cptr int,name string) {
+func UpdateLastSawNPtr(sst PoSST,class,cptr int,name string) {
 
 	s := fmt.Sprintf("select LastSawNPtr('(%d,%d)','%s')",class,cptr,name)
-	ctx.DB.QueryRow(s)
+	sst.DB.QueryRow(s)
 }
 
 //******************************************************************
 
-func GetLastSawSection(ctx PoSST) []LastSeen {
+func GetLastSawSection(sst PoSST) []LastSeen {
 
 	qstr := fmt.Sprintf("SELECT section,nptr,last,freq,delta as pdelta,EXTRACT(EPOCH FROM NOW()-last) as ndelta from Lastseen ORDER BY section")
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("GetLastSawSection failed\n",qstr,err)
@@ -6102,13 +6120,13 @@ func GetLastSawSection(ctx PoSST) []LastSeen {
 
 //******************************************************************
 
-func GetLastSawNPtr(ctx PoSST, nptr NodePtr) LastSeen {
+func GetLastSawNPtr(sst PoSST, nptr NodePtr) LastSeen {
 
 	var ls LastSeen
 
 	qstr := fmt.Sprintf("SELECT section,last,freq,delta as pdelta,EXTRACT(EPOCH FROM NOW()-last) as ndelta from Lastseen WHERE NPTR='(%d,%d)'::NodePtr",nptr.Class,nptr.CPtr)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("GetLastSawNPtr failed\n",qstr,err)
@@ -6151,7 +6169,7 @@ const TEXT_SIZE_LIMIT = 30
 
 // *********************************************************************
 
-func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParameters) string {
+func UpdateSTMContext(sst PoSST,ambient,key string,now int64,params SearchParameters) string {
 
 	var context []string
 
@@ -6160,7 +6178,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 		context = append(context,params.Name...)
 		context = append(context,params.From...)
 		context = append(context,params.To...)
-		return AddContext(ctx,ambient,key,now,context)
+		return AddContext(sst,ambient,key,now,context)
 	} else {
 		// ongoing / adhoc are ambient
 		context = append(context,params.Name...)
@@ -6175,7 +6193,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 			context = append(context,"Chapter:"+params.Chapter)
 		}
 
-		return AddContext(ctx,ambient,key,now,context)
+		return AddContext(sst,ambient,key,now,context)
 	}
 
 	return ""
@@ -6183,7 +6201,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 
 // *********************************************************************
 
-func AddContext(ctx PoSST,ambient,key string,now int64,tokens []string) string {
+func AddContext(sst PoSST,ambient,key string,now int64,tokens []string) string {
 
 	for t := range tokens {
 
@@ -6200,7 +6218,7 @@ func AddContext(ctx PoSST,ambient,key string,now int64,tokens []string) string {
 			fmt.Sscanf(token,"(%d,%d)",&nptr.Class,&nptr.CPtr)
 
 			if nptr.Class > 0 {
-				node := GetDBNodeByNodePtr(ctx,nptr)
+				node := GetDBNodeByNodePtr(sst,nptr)
 				if node.L < TEXT_SIZE_LIMIT {
 					token = node.S
 				} else {
@@ -6278,7 +6296,7 @@ func CommitContextToken(token string,now int64,key string) {
 
 // *********************************************************************
 
-func ContextInterferometry(now_ctx string) {
+func ContextInterferometry(now_sst string) {
 
  // deleted
 
@@ -6414,43 +6432,43 @@ func GetContextTokenFrequencies(fraglist []string) map[string]int {
 // Presentation on command line
 // **************************************************************************
 
-func PrintNodeOrbit(ctx PoSST, nptr NodePtr,limit int) {
+func PrintNodeOrbit(sst PoSST, nptr NodePtr,limit int) {
 
-	node := GetDBNodeByNodePtr(ctx,nptr)		
+	node := GetDBNodeByNodePtr(sst,nptr)		
 	fmt.Print("\"")
 	ShowText(node.S,SCREENWIDTH)
 	fmt.Print("\"")
 	fmt.Println("\tin chapter:",node.Chap)
 	fmt.Println()
 
-	notes := GetNodeOrbit(ctx,nptr,"",limit)
+	satellites := GetNodeOrbit(sst,nptr,"",limit)
 
-	PrintLinkOrbit(notes,EXPRESS,0)
-	PrintLinkOrbit(notes,-EXPRESS,0)
-	PrintLinkOrbit(notes,-CONTAINS,0)
-	PrintLinkOrbit(notes,LEADSTO,0)
-	PrintLinkOrbit(notes,-LEADSTO,0)
-	PrintLinkOrbit(notes,NEAR,0)
+	PrintLinkOrbit(satellites,EXPRESS,0)
+	PrintLinkOrbit(satellites,-EXPRESS,0)
+	PrintLinkOrbit(satellites,-CONTAINS,0)
+	PrintLinkOrbit(satellites,LEADSTO,0)
+	PrintLinkOrbit(satellites,-LEADSTO,0)
+	PrintLinkOrbit(satellites,NEAR,0)
 
 	fmt.Println()
 }
 
 // **************************************************************************
 
-func PrintLinkOrbit(notes [ST_TOP][]Orbit,sttype int,indent_level int) {
+func PrintLinkOrbit(satellites [ST_TOP][]Orbit,sttype int,indent_level int) {
 
 	t := STTypeToSTIndex(sttype)
 
-	for n := range notes[t] {		
+	for n := range satellites[t] {		
 
-		r := notes[t][n].Radius + indent_level
+		r := satellites[t][n].Radius + indent_level
 
-		if notes[t][n].Ctx != "" {
-			txt := fmt.Sprintf(" -    (%s) - %s  \t.. in the context of %s\n",notes[t][n].Arrow,notes[t][n].Text,notes[t][n].Ctx)
+		if satellites[t][n].Ctx != "" {
+			txt := fmt.Sprintf(" -    (%s) - %s  \t.. in the context of %s\n",satellites[t][n].Arrow,satellites[t][n].Text,satellites[t][n].Ctx)
 			text := Indent(LEFTMARGIN * r) + txt
 			ShowText(text,SCREENWIDTH)
 		} else {
-			txt := fmt.Sprintf(" -    (%s) - %s\n",notes[t][n].Arrow,notes[t][n].Text)
+			txt := fmt.Sprintf(" -    (%s) - %s\n",satellites[t][n].Arrow,satellites[t][n].Text)
 			text := Indent(LEFTMARGIN * r) + txt
 			ShowText(text,SCREENWIDTH)
 		}
@@ -6461,20 +6479,20 @@ func PrintLinkOrbit(notes [ST_TOP][]Orbit,sttype int,indent_level int) {
 
 // **************************************************************************
 
-func PrintLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter string,context []string) {
+func PrintLinkPath(sst PoSST, cone [][]Link, p int, prefix string,chapter string,context []string) {
 
-	PrintSomeLinkPath(ctx,cone, p,prefix,chapter,context,10000)
+	PrintSomeLinkPath(sst,cone, p,prefix,chapter,context,10000)
 }
 
 // **************************************************************************
 
-func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter string,context []string,limit int) {
+func PrintSomeLinkPath(sst PoSST, cone [][]Link, p int, prefix string,chapter string,context []string,limit int) {
 
 	count := 0
 
 	if len(cone[p]) > 1 {
 
-		path_start := GetDBNodeByNodePtr(ctx,cone[p][0].Dst)		
+		path_start := GetDBNodeByNodePtr(sst,cone[p][0].Dst)		
 		
 		start_shown := false
 
@@ -6505,13 +6523,13 @@ func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter st
 				start_shown = true
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,cone[p][l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,cone[p][l].Dst)
 
 			if !SimilarString(nextnode.Chap,chapter) {
 				break
 			}
 
-			arr := GetDBArrowByPtr(ctx,cone[p][l].Arr)
+			arr := GetDBArrowByPtr(sst,cone[p][l].Arr)
 
 			if arr.Short == "then" {
 				fmt.Print("\n   >>> ")
@@ -6545,15 +6563,15 @@ func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter st
 // Rendering, Marshalling, Presentation in JSON
 // **************************************************************************
 
-func JSONNodeEvent(ctx PoSST, nptr NodePtr,xyz Coords,orbits [ST_TOP][]Orbit) NodeEvent {
+func JSONNodeEvent(sst PoSST, nptr NodePtr,xyz Coords,orbits [ST_TOP][]Orbit) NodeEvent {
 
-	node := GetDBNodeByNodePtr(ctx,nptr)
+	node := GetDBNodeByNodePtr(sst,nptr)
 
 	var event NodeEvent
 	event.Text = node.S
 	event.L = node.L
 	event.Chap = node.Chap
-	event.Context = GetNodeContextString(ctx,node)
+	event.Context = GetNodeContextString(sst,node)
 	event.NPtr = nptr
 	event.XYZ = xyz
 	event.Orbits = orbits
@@ -6562,7 +6580,7 @@ func JSONNodeEvent(ctx PoSST, nptr NodePtr,xyz Coords,orbits [ST_TOP][]Orbit) No
 
 // **************************************************************************
 
-func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []string,swimlanes,limit int) [][]WebPath {
+func LinkWebPaths(sst PoSST,cone [][]Link,nth int,chapter string,context []string,swimlanes,limit int) [][]WebPath {
 
 	// This is dealing in good faith with one of swimlanes cones, assigning equal width to all
 	// The cone is a flattened array, we can assign spatial coordinates for visualization
@@ -6575,7 +6593,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 
 	for p := 0; p < len(cone); p++ {
 
-		path_start := GetDBNodeByNodePtr(ctx,cone[p][0].Dst)		
+		path_start := GetDBNodeByNodePtr(sst,cone[p][0].Dst)		
 		
 		start_shown := false
 
@@ -6587,7 +6605,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 				break
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,cone[p][l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,cone[p][l].Dst)
 
 			if !SimilarString(nextnode.Chap,chapter) {
 				break
@@ -6603,7 +6621,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 				start_shown = true
 			}
 
-			arr := GetDBArrowByPtr(ctx,cone[p][l].Arr)
+			arr := GetDBArrowByPtr(sst,cone[p][l].Arr)
 	
 			if l < len(cone[p]) {
 				var wl WebPath
@@ -6630,7 +6648,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 
 // **************************************************************************
 
-func GetChaptersByChapContext(ctx PoSST,chap string,cn []string,limit int) map[string][]string {
+func GetChaptersByChapContext(sst PoSST,chap string,cn []string,limit int) map[string][]string {
 
 	qstr := ""
 	chap_col := ""
@@ -6659,7 +6677,7 @@ func GetChaptersByChapContext(ctx PoSST,chap string,cn []string,limit int) map[s
 
 	qstr = fmt.Sprintf("SELECT DISTINCT chap,ctx FROM PageMap WHERE match_context(ctx,%s) %s ORDER BY Chap",context,chap_col)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetChaptersByChapContext Failed",err,qstr)
@@ -6707,7 +6725,7 @@ func GetChaptersByChapContext(ctx PoSST,chap string,cn []string,limit int) map[s
 
 // **************************************************************************
 
-func JSONPage(ctx PoSST, maplines []PageMap) string {
+func JSONPage(sst PoSST, maplines []PageMap) string {
 
 	var webnotes PageView
 	var lastchap,lastctx string
@@ -6750,7 +6768,7 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 
 		for lnk := 0; lnk < len(maplines[n].Path); lnk++ {
 			
-			text := GetDBNodeByNodePtr(ctx,maplines[n].Path[lnk].Dst)
+			text := GetDBNodeByNodePtr(sst,maplines[n].Path[lnk].Dst)
 			
 			if lnk == 0 {
 				var ws WebPath
@@ -6763,7 +6781,7 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 				path = append(path,ws)
 				
 			} else {// ARROW
-				arr := GetDBArrowByPtr(ctx,maplines[n].Path[lnk].Arr)
+				arr := GetDBArrowByPtr(sst,maplines[n].Path[lnk].Arr)
 				var wl WebPath
 				wl.Name = arr.Long
 				wl.Arr = maplines[n].Path[lnk].Arr
@@ -6793,13 +6811,13 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 // Retrieve cluster Analysis
 // **************************************************************************
 
-func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
+func GetAppointedNodesByArrow(sst PoSST,arrow ArrowPtr,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
 
 	// return a map of all the nodes in chap,context that are pointed to by the same type of arrow
         // grouped by arrow
 
 	reverse_arrow := INVERSE_ARROWS[arrow]
-	arr := GetDBArrowByPtr(ctx,reverse_arrow)
+	arr := GetDBArrowByPtr(sst,reverse_arrow)
 	sttype := STIndexToSTType(arr.STAindex)
 
 	_,cn_stripped := IsBracketedSearchList(cn)
@@ -6820,7 +6838,7 @@ func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,s
 
 	qstr := fmt.Sprintf("SELECT unnest(GetAppointments(%d,%d,%d,'%s',%s,%v))",int(reverse_arrow),sttype,size,chap_col,context,remove_chap_accents)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetAppointedNodesByArrow Failed",err,qstr)
@@ -6844,7 +6862,7 @@ func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,s
 
 // **************************************************************************
 
-func GetAppointedNodesBySTType(ctx PoSST,sttype int,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
+func GetAppointedNodesBySTType(sst PoSST,sttype int,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
 
 	// return a map of all the nodes in chap,context that are pointed to by the same type of arrow
         // grouped by arrow
@@ -6867,7 +6885,7 @@ func GetAppointedNodesBySTType(ctx PoSST,sttype int,cn []string,chap string,size
 
 	qstr := fmt.Sprintf("SELECT unnest(GetAppointments(%d,%d,%d,'%s',%s,%v))",-1,sttype,size,chap_col,context,remove_chap_accents)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetAppointedNodesByArrow Failed",err,qstr)
@@ -6960,12 +6978,12 @@ func ParseAppointedNodeCluster(whole string) Appointment {
 // CENTRALITY
 // **************************************************************************
 
-func TallyPath(ctx PoSST,path []Link,between map[string]int) map[string]int {
+func TallyPath(sst PoSST,path []Link,between map[string]int) map[string]int {
 
 	// count how often each node appears in the different path solutions
 
 	for leg := range path {
-		n := GetDBNodeByNodePtr(ctx,path[leg].Dst)
+		n := GetDBNodeByNodePtr(sst,path[leg].Dst)
 		between[n.S]++
 	}
 
@@ -6974,12 +6992,12 @@ func TallyPath(ctx PoSST,path []Link,between map[string]int) map[string]int {
 
 // **************************************************************************
 
-func BetweenNessCentrality(ctx PoSST,solutions [][]Link) []string {
+func BetweenNessCentrality(sst PoSST,solutions [][]Link) []string {
 
 	var betweenness = make(map[string]int)
 
 	for s := 0; s < len(solutions); s++ {
-		betweenness = TallyPath(ctx,solutions[s],betweenness)
+		betweenness = TallyPath(sst,solutions[s],betweenness)
 	}
 
 	var inv = make(map[int][]string)
@@ -7054,7 +7072,7 @@ func SuperNodesByConicPath(solutions [][]Link, maxdepth int) [][]NodePtr {
 
 // **************************************************************************
 
-func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) []string {
+func SuperNodes(sst PoSST,solutions [][]Link, maxdepth int) []string {
 
 	supernodes := SuperNodesByConicPath(solutions,maxdepth)
 
@@ -7065,7 +7083,7 @@ func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) []string {
 		super := ""
 
 		for n := range supernodes[g] {
-			node := GetDBNodeByNodePtr(ctx,supernodes[g][n])
+			node := GetDBNodeByNodePtr(sst,supernodes[g][n])
 			super += fmt.Sprintf("%s",node.S)
 			if n < len(supernodes[g])-1 {
 				super += ", "
@@ -7340,7 +7358,10 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 						p++
 						ult := strings.Split(cmd_parts[c][pp],",")
 						for u := range ult {
-							param.Context = append(param.Context,DeQ(ult[u]))
+							class := strings.TrimSpace(DeQ(ult[u]))
+							if len(class) > 0 {
+								param.Context = append(param.Context,class)
+							}
 						}
 					}
 				} else {
@@ -7631,6 +7652,7 @@ var GR_DAY_TEXT = []string{
     }
         
 var GR_MONTH_TEXT = []string{
+	"NONE",
         "January",
         "February",
         "March",
@@ -7686,7 +7708,7 @@ func DoNowt(then time.Time) (string,string) {
 	// so prefix temporal classes with a :
 
 	year := fmt.Sprintf("Yr%d",then.Year())
-	month := GR_MONTH_TEXT[int(then.Month())-1]
+	month := GR_MONTH_TEXT[int(then.Month())]
 	day := then.Day()
 	hour := fmt.Sprintf("Hr%02d",then.Hour())
 	quarter := fmt.Sprintf("Qu%d",then.Minute()/15 + 1)
@@ -7727,20 +7749,6 @@ func GetTimeContext() (string,string,int64) {
 
 // ****************************************************************************
 
-func GetUnixTimeKey(now int64) string {
-
-	// Time on the torus (donut/doughnut) (CFEngine style)
-	// The argument is in traditional UNIX "time_t" unit e.g. then := time.Unix()
-	// This is a simple wrapper to DoNowt() returning only a db-suitable keyname
-
-	t := time.Unix(now, 0)
-	_,slot := DoNowt(t)
-
-	return slot
-}
-
-// ****************************************************************************
-
 func Season (month string) (string,string) {
 
 	switch month {
@@ -7756,6 +7764,111 @@ func Season (month string) (string,string) {
 	}
 
 	return "hurricane","typhoon"
+}
+
+// ****************************************************************************
+ 
+func GetTimeFromSemantics(speclist []string,now time.Time) time.Time {
+
+	day := 0
+	hour := 0
+	mins := 0
+	weekday := 0
+	month := time.Month(0)
+	year := 0
+	days_to_next := 0
+
+	hasweekday := false
+	hasmonth := false
+
+	// Parse semantic time array
+
+	for i,v := range speclist {
+
+		if i == 0 {
+			continue
+		}
+
+		if strings.HasPrefix(v,"Day") {
+			fmt.Sscanf(v[3:],"%d",&day)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Yr") {
+			fmt.Sscanf(v[2:],"%d",&year)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Min") {
+			fmt.Sscanf(v[3:],"%d",&mins)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Hr") {
+			fmt.Sscanf(v[2:],"%d",&hour)
+			continue
+		}
+
+		if !hasweekday {
+			weekday,hasweekday = InList(v,GR_DAY_TEXT)
+			if hasweekday {
+				intended := weekday
+				todayis := fmt.Sprintf("%s",now.Weekday())
+				actual,_ := InList(todayis,GR_DAY_TEXT)
+				days_to_next = (intended - actual + 7) % 7
+				continue
+			}
+		}
+
+		if !hasmonth {
+			var index int
+			index,hasmonth = InList(v,GR_MONTH_TEXT)
+			if hasmonth {
+				month = time.Month(index)
+				continue
+			}
+		}
+
+		fmt.Println("Semantic time parameter without semantic prefix (Day,Hr,Min, etc)",v)
+	}
+
+	if hasweekday && (day > 0 || hasmonth || year > 0) {
+		fmt.Println("Weekday only makes sense as the next applicable occurrence, without a date")
+	} else if hasweekday {
+
+		// We're looking for the next upcoming day
+		day = now.Day()
+		month = now.Month()
+		year = now.Year()
+		newnow := time.Date(year,month,day,0,0,0,0,time.UTC)
+		newnow = newnow.AddDate(0,0,days_to_next)
+		return newnow
+	}
+
+	if year == 0 {
+		year = now.Year()
+	}
+
+	if day == 0 {
+		day = now.Day()
+	}
+
+	if month == 0 {
+		month = now.Month()
+	}
+
+	if hour == 0 {
+		hour = now.Hour()
+	}
+
+	// Note the local timezone is very problematic in Go
+
+	_,offset_secs := now.Zone()
+
+	offset := offset_secs / 3600
+
+	newnow := time.Date(year,month,day,hour-offset,mins,0,0,time.UTC)
+	return newnow
 }
 
 //*****************************************************************
@@ -9267,6 +9380,19 @@ func SimilarString(full,like string) bool {
 
 //****************************************************************************
 
+func InList(s string, list []string) (int,bool) {
+
+	for i,v := range list {
+		if s == v {
+			return i,true
+		}
+	}
+
+	return -1,false
+}
+
+//****************************************************************************
+
 func MatchArrows(arrows []ArrowPtr,arr ArrowPtr) bool {
 
 	for a := range arrows {
@@ -9650,4 +9776,152 @@ func ReadToNext(array []rune,pos int,r rune) (string,int) {
 	return ret,len(ret)
 }
 
+//****************************************************************************
+// Allow for simple dynamic content for some approved realtime functions
+//****************************************************************************
+
+func ExpandDynamicFunctions(s string) string {
+
+	if !strings.Contains(s,"{") {
+		return s
+	}
+
+	if !strings.Contains(s,"}") {
+		return s
+	}
+
+	chars := []rune(s[len("Dynamic:"):])
+
+	var news string
+
+	for pos := 0; pos < len(chars); pos++ {
+
+		if chars[pos] != '{' {
+			news += string(chars[pos])
+		} else {
+			newpos,result := EvaluateInBuilt(chars,pos)
+			news += result
+			pos = newpos
+		}
+	}
+
+	return news
+}
+
+//****************************************************************************
+
+func EvaluateInBuilt(chars []rune,pos int) (int,string) {
+
+	var fntext string
+	var endpos int
+
+	for r := pos; chars[r] != '}' && r < len(chars); r++ {
+		fntext += string(chars[r])
+		endpos = r+1
+	}
+
+	fntext = fntext[1:len(fntext)]
+
+	delim := func(c rune) bool {
+		return c == ' ' || c == ',' || c == ';'
+	}
+
+	fn := strings.FieldsFunc(fntext,delim)
+	result := DoInBuiltFunction(fn)
+	return endpos,result
+}
+
+//****************************************************************************
+
+func DoInBuiltFunction(fn []string) string {
+
+	// Placeholder - this needs to support sandboxed read only user functions
+
+	var result string
+
+	switch fn[0] {
+	case "TimeUntil":
+		result = InBuiltTimeUntil(fn)
+	case "TimeSince":
+		result = InBuiltTimeSince(fn)
+	}
+
+	return result
+}
+
+//****************************************************************************
+
+func InBuiltTimeUntil(fn []string) string {
+
+	now := time.Now().Local()
+	intended_time := GetTimeFromSemantics(fn,now)
+	duration := intended_time.Sub(now)
+
+	interval := int(duration / 1000000000)  // nanoseconds -> seconds
+
+	years := interval / (365 * 24 * 3600)
+	r1 := interval % (365 * 24 * 3600)
+
+	days := r1 / (24 * 3600)
+	r2 := r1 % (24 * 3600)
+
+	hours := r2 / 3600
+	r3 :=  r2 % 3600
+
+	mins := r3 / 60
+
+	return ShowTime(years,days,hours,mins)
+}
+
+//****************************************************************************
+
+func InBuiltTimeSince(fn []string) string {
+
+	now := time.Now().Local()
+	intended_time := GetTimeFromSemantics(fn,now)
+
+	duration := now.Sub(intended_time)
+
+	interval := int(duration / 1000000000)  // nanoseconds -> seconds
+
+	years := interval / (365 * 24 * 3600)
+	r1 := interval % (365 * 24 * 3600)
+
+	days := r1 / (24 * 3600)
+	r2 := r1 % (24 * 3600)
+
+	hours := r2 / 3600
+	r3 :=  r2 % 3600
+
+	mins := r3 / 60
+
+	return ShowTime(years,days,hours,mins)
+}
+
+//****************************************************************************
+
+func ShowTime(years,days,hours,mins int) string {
+
+	var s string
+
+	if years > 0 {
+		s += fmt.Sprintf("%d Years, ",years)
+	}
+
+	if days > 0 {
+		s += fmt.Sprintf("%d Days, ",days)
+	}
+
+	if hours > 0 {
+		s += fmt.Sprintf("%d Hours, ",hours)
+	}
+
+	s += fmt.Sprintf("%d Mins ",mins)
+
+	if mins < 0 {
+		s += " [already passed or waiting for next occurrence]"
+	}
+
+	return s
+}
 

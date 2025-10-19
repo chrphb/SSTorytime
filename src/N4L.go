@@ -9,7 +9,6 @@ package main
 import (
 	"strings"
 	"os"
-	"io/ioutil"
 	"bufio"
 	"flag"
 	"fmt"
@@ -72,7 +71,7 @@ const (
 	ERR_ANNOTATION_REDEFINE = "Redefinition of annotation character"
 	ERR_SIMILAR_NO_SIGN = "Arrows for similarity do not have signs, they are directionless"
 	ERR_ARROW_SELFLOOP = "Arrow's origin points to itself"
-	ERR_ARR_REDEFINITION="Redefinition of arrow "
+	ERR_ARR_REDEFINITION="Warning: Redefinition of arrow "
 	ERR_NEGATIVE_WEIGHT = "Arrow relation has a negative weight, which is disallowed. Use a NOT relation if you want to signify inhibition: "
 	ERR_TOO_MANY_WEIGHTS = "More than one weight value in the arrow relation "
         ERR_STRAY_PAREN="Stray ) in an event/item - illegal character"
@@ -135,6 +134,7 @@ var (
 //**************************************************************
 
 type RCtype struct {
+
 	Row SST.NodePtr
 	Col SST.NodePtr
 }
@@ -145,7 +145,7 @@ type RCtype struct {
 
 func main() {
 
-	var ctx SST.PoSST
+	var sst SST.PoSST
 
 	args := Init()
 
@@ -156,7 +156,7 @@ func main() {
 			load_arrows = false
 		}
 
-		ctx = SST.Open(load_arrows)
+		sst = SST.Open(load_arrows)
 	}
 
 	AddMandatory()
@@ -196,7 +196,7 @@ func main() {
 	}
 
 	if UPLOAD {
-		dbchapters := SST.GetDBChaptersMatchingName(ctx,"")
+		dbchapters := SST.GetDBChaptersMatchingName(sst,"")
 		memchapters := GetMemChapters()
 
 		conflict := false
@@ -217,10 +217,10 @@ func main() {
 
 		} else {
 			fmt.Println("\n\nUploading nodes..")
-			SST.GraphToDB(ctx,true)
+			SST.GraphToDB(sst,true)
 		}
 
-		SST.Close(ctx)
+		SST.Close(sst)
 	}
 }
 
@@ -317,7 +317,9 @@ func NewFile(filename string) {
 	FWD_ARROW = ""
 	BWD_ARROW = ""
 	SECTION_STATE = ""
-	CONTEXT_STATE = make(map[string]bool)
+	ResetContextState()
+	Box("Reset context","any")
+	ContextEval("any","=")
 }
 
 //**************************************************************
@@ -412,13 +414,11 @@ func ClassifyConfigRole(token string) {
 			reln = strings.TrimSpace(reln)
 
 			if LINE_ITEM_STATE == HAVE_MINUS {
-				CheckArrow(reln,BWD_ARROW)
 				BWD_INDEX = SST.InsertArrowDirectory(SECTION_STATE,reln,BWD_ARROW,"-")
 				ArrowCollision(BWD_INDEX,reln,BWD_ARROW)
 				SST.InsertInverseArrowDirectory(FWD_INDEX,BWD_INDEX)
 				PVerbose("In",SECTION_STATE,"short name",reln,"for",BWD_ARROW,", direction","-")
 			} else if LINE_ITEM_STATE == HAVE_PLUS {
-				CheckArrow(reln,FWD_ARROW)
 				FWD_INDEX = SST.InsertArrowDirectory(SECTION_STATE,reln,FWD_ARROW,"+")
 				ArrowCollision(FWD_INDEX,reln,FWD_ARROW)
 				PVerbose("In",SECTION_STATE,"short name",reln,"for",FWD_ARROW,", direction","+")
@@ -504,35 +504,10 @@ func ClassifyConfigRole(token string) {
 
 //**************************************************************
 
-func CheckArrow(alias,name string) {
-
-	if !SST.WIPE_DB && UPLOAD {
-
-		// If we're not resetting, we should expect some defs already in place
-		return
-	}
-
-	prev,ok := SST.ARROW_SHORT_DIR[alias]
-
-	if ok {
-		ParseError(ERR_ARR_REDEFINITION+"\""+alias+"\" previous short name: "+SST.ARROW_DIRECTORY[prev].Short)
-		//os.Exit(-1)
-	}
-	
-	prev,ok = SST.ARROW_LONG_DIR[name]
-
-	if ok {
-		ParseError(ERR_ARR_REDEFINITION+"\""+name+"\" previous long name: "+SST.ARROW_DIRECTORY[prev].Long)
-		//os.Exit(-1)
-	}
-}
-
-//**************************************************************
-
 func ArrowCollision(arr SST.ArrowPtr,short,long string) {
 
 	if arr < 0 {
-		ParseError(ERR_ARR_REDEFINITION+"\""+long+" or "+"\""+short+"\" seems to be previously used somewhere")
+		ParseError(ERR_ARR_REDEFINITION+"long \""+long+"\"/"+"short \""+short+"\" seems to be previously used somewhere")
 		//os.Exit(-1)
 	}
 }
@@ -1126,11 +1101,11 @@ func ParseN4L(src []rune) {
 	var token string
 
 	for pos := 0; pos < len(src); {
+
 		pos = SkipWhiteSpace(src,pos)
 		token,pos = GetToken(src,pos)
 
 		ClassifyTokenRole(token)
-
 	}
 
 	if Dangler() {
@@ -1165,9 +1140,9 @@ func SkipWhiteSpace(src []rune, pos int) int {
 
 func AddMandatory() {
 
-	SST.RegisterContext(nil,[]string{"any"})  // Register and empty
+	SST.RegisterContext(nil,[]string{"any"})
 
-	// empty link for orphans to retain context
+	// empty link for orphans to retain context - NB, this convention is used a lot in context handling EMPTY == LEADSTO
 
 	arr := SST.InsertArrowDirectory("leadsto","empty","debug","+")
 	inv := SST.InsertArrowDirectory("leadsto","void","unbug","-")
@@ -1251,7 +1226,7 @@ func GetToken(src []rune, pos int) (string,int) {
 
 	var token string
 
-	if pos >= len(src) {
+	if pos >= len(src) {	    // end of file
 		return "", pos
 	}
 
@@ -1442,12 +1417,12 @@ func AssessGrammarCompletions(token string, prior_state int) {
 	default:
 		CheckSection()
 
-		if AllCaps(token) {
+		if NoteToSelf(token) {
 			ParseError(WARN_NOTE_TO_SELF+" ("+token+")")
 		}
 
 		this_iptr := HandleNode(this_item)
-		IdempContextLink(this_iptr)
+		IdempAddContextToNode(this_iptr)
 		LinkUpStorySequence(this_item)
 	}
 }
@@ -1540,7 +1515,7 @@ func HandleNode(annotated string) SST.NodePtr {
 
 	clean_ptr,clean_version := IdempAddNode(annotated,SEQ_UNKNOWN)
 
-	PVerbose("Event/item/node:",clean_version,"in chapter",SECTION_STATE)
+	PVerbose("Event/item/node: \"",clean_version,"\" in chapter",SECTION_STATE)
 
 	LINE_ITEM_REFS = append(LINE_ITEM_REFS,clean_ptr)
 	
@@ -1588,7 +1563,7 @@ func IdempAddNode(s string,intended_sequence bool) (SST.NodePtr,string) {
 
 //**************************************************************
 
-func IdempContextLink(ptr SST.NodePtr) {
+func IdempAddContextToNode(nptr SST.NodePtr) {
 
 	// add a nullpotent link containing root node for 
 	// context membership, in case it's a singleton
@@ -1598,7 +1573,8 @@ func IdempContextLink(ptr SST.NodePtr) {
 	empty.Ctx = SST.RegisterContext(CONTEXT_STATE,nil)
 	empty.Arr = 0
 	empty.Wgt = 1
-	SST.AppendLinkToNode(ptr,empty,nowhere)
+
+	SST.AppendLinkToNode(nptr,empty,nowhere)
 }
 
 //**************************************************************
@@ -1626,12 +1602,31 @@ func ReadFile(filename string) []rune {
 
 func ReadToLast(src []rune,pos int, stop rune) (string,int) {
 
+	// Read until we find a terminator for this kind of token
+	// determined by "stop" signal - watch out for embedded quotes
+
 	var cpy []rune
 
 	var starting_at = LINE_NUM
 
+	// We have to read the string in rune form to handle unicode
+	// rune by rune to handle special cases and aggregated into cpy
+
 	for ; Collect(src,pos,stop,cpy) && pos < len(src); pos++ {
+
 		cpy = append(cpy,src[pos])
+
+		// if there's an embedded " quote, treat quoted section as a single character 
+
+		if pos+1 < len(src) && src[pos] == '"' {
+			for p := pos+1; p < len(src); p++ {
+				cpy = append(cpy,src[p])
+				if src[p] == '"' {
+					pos = p
+					break
+				}
+			}
+		}
 	}
 
 	if IsQuote(stop) && src[pos-1] != stop {
@@ -1640,13 +1635,12 @@ func ReadToLast(src []rune,pos int, stop rune) (string,int) {
 		os.Exit(-1)
 	}
 
+	// Tokenize the string
+
 	token := string(cpy)
-
 	token = strings.TrimSpace(token)
-
 	count := strings.Count(token,"\n")
 	LINE_NUM += count
-
 	return token,pos
 }
 
@@ -1654,12 +1648,14 @@ func ReadToLast(src []rune,pos int, stop rune) (string,int) {
 
 func Collect(src []rune,pos int, stop rune,cpy []rune) bool {
 
+	// Generalize the stop-condition for for-loop accumulating runes
+	// when we receive the "stop" rune signal, that's the end by policy
+
 	var collect bool = true
 
-	// Quoted strings are tricky
+	// Quoted strings are tricky, especially when they start in the middle of another string
 
 	if IsQuote(stop) {
-
 		var is_end bool
 
 		if pos+1 >= len(src) {
@@ -1673,12 +1669,15 @@ func Collect(src []rune,pos int, stop rune,cpy []rune) bool {
 		} else {
 			return true
 		}
-
 	}
+
+	// nothing unquoted can exceed a line length
 
 	if pos >= len(src) || src[pos] == '\n' {
 		return false
 	}
+
+	// ordinary text strings are signalled by ALPHATEXT policy
 
 	if stop == ALPHATEXT {
 		collect = IsGeneralString(src,pos)
@@ -1713,6 +1712,9 @@ func Collect(src []rune,pos int, stop rune,cpy []rune) bool {
 //**************************************************************
 
 func IsGeneralString(src []rune,pos int) bool {
+
+	// Plain text should terminate like this, but
+	// beware of quotes inside
 
 	switch src[pos] {
 
@@ -2168,6 +2170,13 @@ func GetMemChapters() []string {
 // Context logic
 //**************************************************************
 
+func ResetContextState() {
+
+	CONTEXT_STATE = make(map[string]bool)
+}
+
+//**************************************************************
+
 func ContextEval(s,op string) {
 
 	expr := CleanExpression(s)
@@ -2183,7 +2192,7 @@ func ContextEval(s,op string) {
 	switch op {
 		
 	case "=": 
-		CONTEXT_STATE = make(map[string]bool)
+		ResetContextState()
 		ModContext(or_parts,"+")
 	default:
 		ModContext(or_parts,op)
@@ -2366,14 +2375,21 @@ func CheckSection() {
 
 //**************************************************************
 
-func AllCaps(s string) bool {
+func NoteToSelf(s string) bool {
 
 	if len(s) <= 2 * WORD_MISTAKE_LEN {
 		return false
 	}
 
+	const intentionality_threshold = 50
+
+	if (len(s) > intentionality_threshold) && s[len(s)-1] == '.' {
+		return false
+	}
+
 	for _, r := range s {
-		if !unicode.IsUpper(r) && unicode.IsLetter(r) || unicode.IsNumber(r) {
+
+		if !unicode.IsUpper(r) && (unicode.IsLetter(r) || unicode.IsNumber(r)) {
 			return false
 		}
 	}
@@ -2445,38 +2461,6 @@ func ParseError(message string) {
 
 //**************************************************************
 
-func ReadUTF8File(filename string) []rune {
-	
-	content,err := ioutil.ReadFile(filename)
-	
-	if err != nil {
-		ParseError(ERR_NO_SUCH_FILE_FOUND+filename)
-		os.Exit(-1)
-	}
-
-	var unicode []rune
-	var sign_of_life int
-
-	if GIVE_SIGNS_OF_LIFE {
-		fmt.Print("Encoding for unicode: ")
-	}
-
-	for i, w := 0, 0; i < len(content); i += w {
-                runeValue, width := utf8.DecodeRuneInString(string(content)[i:])
-                w = width
-		unicode = append(unicode,runeValue)
-
-		if GIVE_SIGNS_OF_LIFE && sign_of_life % 10000 == 0 {
-			fmt.Print(" ",i)
-		}
-		sign_of_life++
-	}
-
-	return unicode
-}
-
-//**************************************************************
-
 func ReadUTF8FileBuffered(filename string) []rune { 
 
 	// Open a stream to the file instead of reading it all at once.
@@ -2520,7 +2504,7 @@ func ReadUTF8FileBuffered(filename string) []rune {
 		unicode = append(unicode, r) 
 
 		if GIVE_SIGNS_OF_LIFE && sign_of_life % 10000 == 0 {
-			fmt.Print(" ",sign_of_life)
+			fmt.Print(".")
 		}
 		sign_of_life++
 
