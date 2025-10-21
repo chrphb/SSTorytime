@@ -2758,19 +2758,19 @@ func DefineStoredFunctions(sst PoSST) {
 		"   c text;\n"+
 		"BEGIN \n" +
 
-		// If the db has no context but the search does, then no need to waste any time
-		"IF thisctxptr = 0 THEN\n"+
-		"   RETURN true;\n" +
+		// If no constraints at all, then match
+
+		"IF array_length(user_set,1) IS NULL THEN\n" +  // Shouldn't happen anymore
+		"   RETURN true;\n"+
+		"END IF;\n"+
+
+		"IF user_set[0] = '' THEN\n"+
+		"   RETURN true;\n"+
 		"END IF;\n"+
 
 		// Convert context ptr into a list from the new factored cache
 		"SELECT Context INTO ctxstr FROM ContextDirectory WHERE ctxPtr=thisctxptr;" +
 		"db_set = regexp_split_to_array(ctxstr,',');\n" +
-
-		// If no constraints at all, then match
-		"IF array_length(user_set,1) IS NULL THEN\n"+
-		"   RETURN true;\n"+
-		"END IF;\n"+
 
 		// If there is a constraint, but no db membership, then no match
 		"IF array_length(db_set,1) IS NULL AND array_length(user_set,1) IS NOT NULL THEN\n"+
@@ -2785,14 +2785,14 @@ func DefineStoredFunctions(sst PoSST) {
 		// clean and unaccent sets
 
 		"FOREACH item IN ARRAY db_set LOOP\n" +
-		"   IF item = 'any' OR item = '' THEN\n" +
+		"   IF thisctxptr = 0 AND (item = 'any' OR item = '') THEN\n" +
 		"      RETURN true;\n"+
 		"   END IF;\n"+
 		"   notes = array_append(notes,lower(unaccent(item)));\n" +
 		"END LOOP;\n" +
 
 		"FOREACH item IN ARRAY user_set LOOP\n" +
-		"   IF item = 'any' OR item = '' THEN\n" +
+		"   IF thisctxptr = 0 AND (item = 'any' OR item = '') THEN\n" +
 		"      RETURN true;\n"+
 		"   END IF;\n"+
 		"   client = array_append(client,lower(unaccent(item)));\n" +
@@ -5878,82 +5878,105 @@ func GetSequenceContainers(sst PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, s
 
 func GetNodeOrbit(sst PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TOP][]Orbit {
 
-	// Find the orbiting linked nodes of NPtr, start with properties of node
+	// radius = 0 is the starting node
 
 	const probe_radius = 3
 
-	// radius = 0 is the starting node
+	// Find the orbiting linked nodes of NPtr, start with properties of node
 
 	sweep,_ := GetEntireConePathsAsLinks(sst,"any",nptr,probe_radius,limit)
 
 	var satellites [ST_TOP][]Orbit
-
-	// Organize by the leading nearest-neighbour by vector/link type
+	var thread_wg sync.WaitGroup
 
 	for stindex := 0; stindex < ST_TOP; stindex++ {
 
-		// Sweep different radial paths [angle][depth]
+		// Go routines remain a mystery
+		thread_wg.Add(1)
+		
+		go func(idx int) {
+			defer thread_wg.Done()  // threading
+			
+			satellites[idx] = AssembleSatellitesBySTtype(sst,idx,satellites[idx],sweep,exclude_vector,probe_radius,limit)
+			
+		} (stindex)
+	}
+	
+	thread_wg.Wait()
 
-		for angle := 0; angle < len(sweep); angle++ {
+	return satellites
+}
 
-			// len(sweep[angle]) is the length of the probe path at angle
+// **************************************************************************
 
-			if sweep[angle] != nil && len(sweep[angle]) > 1 {
+func AssembleSatellitesBySTtype(sst PoSST,stindex int,satellite []Orbit,sweep [][]Link,exclude_vector string,probe_radius int,limit int) []Orbit {
 
-				const nearest_satellite = 1
-				start := sweep[angle][nearest_satellite]
+	// Sweep different radial paths [angle][depth]
+	
+	for angle := 0; angle < len(sweep); angle++ {
+		
+		// len(sweep[angle]) is the length of the probe path at angle
+		
+		if sweep[angle] != nil && len(sweep[angle]) > 1 {
+			
+			const nearest_satellite = 1
+			start := sweep[angle][nearest_satellite]
+			
+			arrow := GetDBArrowByPtr(sst,start.Arr)
+			
+			if arrow.STAindex == stindex {
 
-				arrow := GetDBArrowByPtr(sst,start.Arr)
+				txt := GetDBNodeByNodePtr(sst,start.Dst)
 
-				if arrow.STAindex == stindex {
-					txt := GetDBNodeByNodePtr(sst,start.Dst)
-
-					var nt Orbit
-
-					nt.Arrow = arrow.Long
-                                        nt.STindex = arrow.STAindex
-					nt.Dst = start.Dst
-					nt.Text = txt.S
-					nt.Radius = 1
+				var nt Orbit				
+				nt.Arrow = arrow.Long
+				nt.STindex = arrow.STAindex
+				nt.Dst = start.Dst
+				nt.Text = txt.S
+				if txt.I[LEADSTO] != nil {
+					nt.Ctx = GetContext(txt.I[LEADSTO][0].Ctx)  // node context
+				} else {
+					nt.Ctx = "any"
+				}
+				nt.Radius = 1
+				if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
+					continue
+				}
+				
+				satellite = IdempAddSatellite(satellite,nt)
+				
+				// are there more satellites at this angle?
+				
+				for depth := 2; depth < probe_radius && depth < len(sweep[angle]); depth++ {
+					
+					arprev := STIndexToSTType(arrow.STAindex)
+					next := sweep[angle][depth]
+					arrow = GetDBArrowByPtr(sst,next.Arr)
+					subtxt := GetDBNodeByNodePtr(sst,next.Dst)
+					
 					if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
-						continue
+						break
 					}
-
-					satellites[stindex] = IdempAddSatellite(satellites[stindex],nt)
-
-					// are there more satellites at this angle?
-
-					for depth := 2; depth < probe_radius && depth < len(sweep[angle]); depth++ {
-
-						arprev := STIndexToSTType(arrow.STAindex)
-						next := sweep[angle][depth]
-						arrow = GetDBArrowByPtr(sst,next.Arr)
-						subtxt := GetDBNodeByNodePtr(sst,next.Dst)
-
-						if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
-							break
-						}
-
-						nt.Arrow = arrow.Long
-						nt.STindex = arrow.STAindex
-						nt.Dst = next.Dst
-						nt.Ctx = GetContext(next.Ctx)
-						nt.Text = subtxt.S
-						nt.Radius = depth
-
-						arthis := STIndexToSTType(arrow.STAindex)
-						// No backtracking
-						if arthis != -arprev {	
-							satellites[stindex] = IdempAddSatellite(satellites[stindex],nt)
-							arprev = arthis
-						}
+					
+					nt.Arrow = arrow.Long
+					nt.STindex = arrow.STAindex
+					nt.Dst = next.Dst
+					nt.Ctx = GetContext(next.Ctx)
+					nt.Text = subtxt.S
+					nt.Radius = depth
+					
+					arthis := STIndexToSTType(arrow.STAindex)
+					// No backtracking
+					if arthis != -arprev {	
+						satellite = IdempAddSatellite(satellite,nt)
+						arprev = arthis
 					}
 				}
 			}
 		}
 	}
 
-	return satellites
+	return satellite
 }
 
 // **************************************************************************
