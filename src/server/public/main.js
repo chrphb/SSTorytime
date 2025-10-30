@@ -271,6 +271,10 @@ switch (obj.Response)
       break;
    case "PathSolve":
       title = "Path solutions";
+      if (obj.Content != null && obj.Content[0] != null)
+	 {
+	 title = obj.Content[0].Title;
+	 }
       break;
    case "Sequence":
       if (obj.Content != null && obj.Content[0] != null)
@@ -423,9 +427,11 @@ for (let head_nptr of obj.Content)
       col1.appendChild(lst1);
 
       let col2 = document.createElement("td");
+
       let hd2 = document.createElement("strong");
       hd2.textContent = "Supernode summary";
       col2.appendChild(hd2);
+
       let lst2 = document.createElement("ol");
 
       if (head_nptr.SuperNodes != null)
@@ -433,7 +439,7 @@ for (let head_nptr of obj.Content)
          for (let snode of head_nptr.SuperNodes)
             {
             let li = document.createElement("li");
-            li.textContent = snode;
+            li.textContent = '"'+snode+'",';
             lst2.appendChild(li);
             }
 	 }
@@ -482,6 +488,8 @@ for (let story of obj.Content)
 
    counter++;
    }
+
+RerenderMath();
 }
 
 /***********************************************************/
@@ -1909,7 +1917,7 @@ return '"'+list+'"'
 function CtxSplice(s)
 {
 let ret = s.replaceAll(" . ", ".");
-return ret;
+return '"'+ret+'"';
 }
 
 /***********************************************************/
@@ -1919,6 +1927,7 @@ return ret;
 function HeatColour(freq, pdelta, sat)
 {
 // pdelta is measured in seconds --> HSL
+
 const hottest = 100;
 const coldest = 3600 * 24 * 7 - hottest;
 

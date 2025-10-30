@@ -48,7 +48,10 @@ func main() {
 		end_set = append(end_set,SST.GetDBNodePtrMatchingName(sst,end_bc[n],"")...)
 	}
 
-	solutions := SST.GetPathsAndSymmetries(sst,start_set,end_set,chapter,context,maxdepth)
+	var arrowptrs []SST.ArrowPtr
+	var sttypes []int
+
+	solutions := SST.GetPathsAndSymmetries(sst,start_set,end_set,chapter,context,arrowptrs,sttypes,maxdepth)
 
 	var count int
 
