@@ -39,4 +39,36 @@ The focus has been on obtaining a "responsive" design that will work on all devi
 
 * * Reading text out loud (in multiple languages) is desirable.
 
-* Basic solving for paths in a graph has been implemented in a generic way, but there cases (such as for criminal investigation or research trial mapping) where more advanced solutions involving types and weights are needed. This remains to be done, because some effort first has to be made to understand the scaling and speed of lookup for different kinds of data. Path searching is computationally intensive and lends itself to a batch-style job (e.g. `graph_report`) rather than an interactive search.
+* * Improved learning goals and tracking.
+
+* * Hosted platform for the compiler and database, with file uploading for portability. This involves a whole new level of user authentication and security, etc. A major project.
+
+* * Validation of Events, Things, Concepts in graph compilation, and tagging of inferred type (checking for nonsense).
+
+* * Provenance and attribution of sources, through notes.
+
+* * Inhibition contexts; implementation of NOT in searches.
+
+* * Handle link weights in searches
+
+* * Help assistant for breaking down text into atomic structures with standard link types.
+
+* * Legal document analysis.
+
+## Hardware
+
+* * Raspberry Pi style wearable device.
+
+## Conversion data projects
+
+* * Product catalogue with annotation.
+
+* * UPnP scan and data input, e.g. music library.
+
+* * Index an existing SQL database.
+
+* * Convert an RDF graph into SST.
+
+* * Inventory / asset graph.
+
+* * Log data analysis.
