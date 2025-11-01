@@ -707,11 +707,6 @@ func Configure(sst PoSST,load_arrows bool) {
 		os.Exit(-1)
 	}
 	
-	if !CreateType(ctx,LINK_TYPE) {
-		fmt.Println("Unable to create type as, ",LINK_TYPE)
-		os.Exit(-1)
-	}	
-
 	if !CreateType(sst,APPOINTMENT_TYPE) {
 		fmt.Println("Unable to create type as, ",APPOINTMENT_TYPE)
 		os.Exit(-1)
